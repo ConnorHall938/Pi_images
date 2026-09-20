@@ -144,7 +144,7 @@ def find_built_image(config, started_at):
 
 
 def build(config):
-    """Build the image, copy it to output/<name>.img and return that path."""
+    """Build the image, move it to output/<name>.img and return that path."""
     check_rpi_image_gen()
     started_at = time.time()
     if not dry_run:
@@ -154,8 +154,10 @@ def build(config):
         return config.output_image
     built = find_built_image(config, started_at)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"copying {built} -> {config.output_image}", flush=True)
-    shutil.copyfile(built, config.output_image)
+    # A move is instant on the same disk; a copy of a multi-GB image takes minutes.
+    # Every build regenerates the image, so nothing needs it left in build/.
+    print(f"moving {built} -> {config.output_image}", flush=True)
+    shutil.move(built, config.output_image)
     return config.output_image
 
 
