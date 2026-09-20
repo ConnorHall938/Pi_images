@@ -20,11 +20,11 @@ tv_kiosk:
   rotation: 90                     # 0, 90, 180 or 270 (270 if 90 turns the wrong way)
 # Wifi
 iwd:
-  profile: ${@SRCROOT}/VM8428755.psk
+  profile: ${@SRCROOT}/assets/tv_image/VM8428755.psk
 ieee80211:
   regdom: GB
 
 #SSH
 ssh:
-  pubkey_user1: ${@SRCROOT}/ssh.pub
+  pubkey_user1: ${@SRCROOT}/assets/tv_image/ssh.pub
   pubkey_only: y

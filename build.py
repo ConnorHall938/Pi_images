@@ -8,9 +8,14 @@
     ./build.py flash tv_image [/dev/sdb]         flash an image that is already built
     ./build.py clean tv_image                    remove the build tree for that config
 
-A config called NAME is the file configs/<project>/config/NAME.yaml. Its project
-folder (configs/<project>) is handed to rpi-image-gen as the source directory,
-so layers, hooks and other files next to the config are found automatically.
+This repository is one rpi-image-gen source tree, laid out like rpi-image-gen itself:
+
+    config/NAME.yaml       a config, built with `./build.py build NAME`
+    layer/                 layers: shared ones in layer/shared/, others per image
+    assets/<image>/        files a config points at, as ${@SRCROOT}/assets/<image>/...
+
+The repository root is handed to rpi-image-gen as the source directory (-S), so its
+layers and config are found automatically, alongside rpi-image-gen's own.
 
 Set RPI_IMAGE_GEN to the rpi-image-gen executable if it is not at ../rpi-image-gen.
 Add --dry-run (before the command) to print what would run without doing it.
@@ -28,7 +33,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-CONFIGS_DIR = ROOT / "configs"
+SOURCE_DIR = ROOT  # passed to rpi-image-gen as -S
+CONFIG_DIR = ROOT / "config"
 BUILD_DIR = ROOT / "build"
 OUTPUT_DIR = ROOT / "output"
 RPI_IMAGE_GEN = Path(
@@ -75,8 +81,7 @@ def capture(cmd, cwd=None):
 @dataclass(frozen=True)
 class Config:
     name: str  # what you type, e.g. tv_image
-    file: Path  # configs/<project>/config/<name>.yaml
-    project_dir: Path  # configs/<project>, passed to rpi-image-gen as -S
+    file: Path  # config/<name>.yaml
 
     @property
     def output_image(self):
@@ -84,21 +89,15 @@ class Config:
 
 
 def discover_configs():
-    return [
-        Config(path.stem, path, path.parent.parent)
-        for path in sorted(CONFIGS_DIR.glob("*/config/*.yaml"))
-    ]
+    return [Config(path.stem, path) for path in sorted(CONFIG_DIR.glob("*.yaml"))]
 
 
 def find_config(name):
     name = name.removesuffix(".yaml")
     configs = discover_configs()
-    matches = [c for c in configs if c.name == name]
-    if len(matches) == 1:
-        return matches[0]
-    if matches:
-        paths = "\n  ".join(str(c.file.relative_to(ROOT)) for c in matches)
-        raise ScriptError(f"'{name}' is ambiguous, found in:\n  {paths}")
+    for config in configs:
+        if config.name == name:
+            return config
     available = ", ".join(c.name for c in configs) or "none"
     raise ScriptError(f"no config called '{name}' (available: {available})")
 
@@ -115,14 +114,14 @@ def check_rpi_image_gen():
 
 def rig_args(config):
     """The options every rpi-image-gen command needs to find this config."""
-    return ["-S", config.project_dir, "-c", config.file.name, "-B", BUILD_DIR]
+    return ["-S", SOURCE_DIR, "-c", config.file.name, "-B", BUILD_DIR]
 
 
 def image_name(config):
     """The image name the config resolves to (includes and overrides applied)."""
     rig_dir = RPI_IMAGE_GEN.parent
     output = capture(
-        [rig_dir / "bin" / "ig", "config", "-S", config.project_dir, config.file],
+        [rig_dir / "bin" / "ig", "config", "-S", SOURCE_DIR, config.file],
         cwd=rig_dir,  # ig looks for its built-in configs relative to here
     )
     for line in output.splitlines():
@@ -290,7 +289,7 @@ def flash(image, disk_path, allow_fixed):
 def cmd_list(args):
     configs = discover_configs()
     if not configs:
-        print(f"no configs found in {CONFIGS_DIR}/<project>/config/")
+        print(f"no configs found in {CONFIG_DIR}")
     for config in configs:
         print(f"{config.name:<20} {config.file.relative_to(ROOT)}")
 
