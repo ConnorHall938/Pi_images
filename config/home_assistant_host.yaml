@@ -1,0 +1,32 @@
+include:
+  file: trixie-minbase.yaml
+
+device:
+  layer: rpi5
+  hostname: ha-host
+  user1: ha
+
+image:
+  name: homeassistant
+  root_part_size: 150%   # was 300% (inherited). Small on purpose: growfs fills the card on first boot
+
+
+layer:
+  app: homeassistant-host
+  kiosk: kiosk
+  growfs: growfs
+
+kiosk:
+  #url: "https://youtube.com"
+  user: ha-kiosk
+  rotation: 90                     # 0, 90, 180 or 270 (270 if 90 turns the wrong way)
+# Wifi
+iwd:
+  profile: ${@SRCROOT}/assets/tv_image/VM8428755.psk
+ieee80211:
+  regdom: GB
+
+#SSH
+ssh:
+  pubkey_user1: ${@SRCROOT}/assets/tv_image/ssh.pub
+  pubkey_only: y

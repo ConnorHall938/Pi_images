@@ -1,6 +1,6 @@
 # METABEGIN
-# X-Env-Layer-Name: tv-kiosk
-# X-Env-Layer-Version: 2.1.0
+# X-Env-Layer-Name: kiosk
+# X-Env-Layer-Version: 1.0.0
 # X-Env-Layer-Category: example
 # X-Env-Layer-Desc: Example webkiosk layer showing how to define configuration
 #  variables, declare packages and create a start up script. We depend on the
@@ -8,7 +8,7 @@
 #  we depend on systemd because we install a systemd service to start the kiosk.
 # X-Env-Layer-Requires: device-user-admin,systemd-net-min,systemd-timesyncd
 #
-# X-Env-VarPrefix: tv_kiosk
+# X-Env-VarPrefix: kiosk
 #
 # X-Env-Var-assetdir: ${DOTD}
 # X-Env-Var-assetdir-Required: n
@@ -23,7 +23,7 @@
 # X-Env-Var-url-Valid: regex:^(https://[a-zA-Z0-9.-]+[a-zA-Z0-9]/?[^ ]*|/[^ ]+)$
 # X-Env-Var-url-Set: y
 #
-# X-Env-Var-user: tv-kiosk
+# X-Env-Var-user: kiosk-user
 # X-Env-Var-user-Desc: Account the kiosk runs as.
 # X-Env-Var-user-Required: n
 # X-Env-Var-user-Valid: regex:^[a-z_][a-z0-9_-]*$
@@ -42,7 +42,6 @@ mmdebstrap:
   packages:
     - cage
     - chromium
-    - cec-utils
     - wlr-randr
   customize-hooks:
     - |
