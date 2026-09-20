@@ -17,10 +17,12 @@ This repository is one rpi-image-gen source tree, laid out like rpi-image-gen it
 The repository root is handed to rpi-image-gen as the source directory (-S), so its
 layers and config are found automatically, alongside rpi-image-gen's own.
 
-Set RPI_IMAGE_GEN to the rpi-image-gen executable if it is not at ../rpi-image-gen.
+rpi-image-gen is a git submodule (rpi-image-gen/). After a fresh clone, fetch it with
+`git submodule update --init`; set RPI_IMAGE_GEN to use a different checkout instead.
 Add --dry-run (before the command) to print what would run without doing it.
 """
 import argparse
+import contextlib
 import json
 import os
 import shlex
@@ -37,8 +39,9 @@ SOURCE_DIR = ROOT  # passed to rpi-image-gen as -S
 CONFIG_DIR = ROOT / "config"
 BUILD_DIR = ROOT / "build"
 OUTPUT_DIR = ROOT / "output"
+USING_SUBMODULE = "RPI_IMAGE_GEN" not in os.environ
 RPI_IMAGE_GEN = Path(
-    os.environ.get("RPI_IMAGE_GEN", ROOT.parent / "rpi-image-gen" / "rpi-image-gen")
+    os.environ.get("RPI_IMAGE_GEN", ROOT / "rpi-image-gen" / "rpi-image-gen")
 )
 
 # A disk with any of these mounted is the machine we are running on: never a target.
@@ -52,6 +55,17 @@ class ScriptError(Exception):
 
 
 # --- running commands ---------------------------------------------------------
+
+
+@contextlib.contextmanager
+def timed(label):
+    """Print how long the enclosed steps took."""
+    started = time.monotonic()
+    try:
+        yield
+    finally:
+        seconds = int(time.monotonic() - started)
+        print(f"[time] {label}: {seconds // 60}m {seconds % 60:02d}s", flush=True)
 
 
 def run(cmd):
@@ -106,10 +120,22 @@ def find_config(name):
 
 
 def check_rpi_image_gen():
-    if not RPI_IMAGE_GEN.is_file():
-        raise ScriptError(
-            f"rpi-image-gen not found at {RPI_IMAGE_GEN} (set RPI_IMAGE_GEN to its path)"
-        )
+    """Make sure rpi-image-gen is there; if the submodule is not fetched, offer to fetch it."""
+    if RPI_IMAGE_GEN.is_file():
+        return
+    if not USING_SUBMODULE:
+        raise ScriptError(f"RPI_IMAGE_GEN points at {RPI_IMAGE_GEN}, which does not exist")
+
+    fetch = ["git", "-C", ROOT, "submodule", "update", "--init", "--", "rpi-image-gen"]
+    print("rpi-image-gen (a git submodule of this repository) has not been fetched yet.")
+    if not sys.stdin.isatty():
+        raise ScriptError(f"fetch it with: {shlex.join(str(part) for part in fetch)}")
+    answer = input("Fetch it now? [Y/n] ").strip().lower()
+    if answer not in ("", "y", "yes"):
+        raise ScriptError("cancelled; rpi-image-gen is needed to build")
+    run(fetch)
+    if not dry_run and not RPI_IMAGE_GEN.is_file():
+        raise ScriptError(f"still no {RPI_IMAGE_GEN} after fetching the submodule")
 
 
 def rig_args(config):
@@ -144,11 +170,11 @@ def find_built_image(config, started_at):
 
 def build(config):
     """Build the image, move it to output/<name>.img and return that path."""
-    check_rpi_image_gen()
     started_at = time.time()
     if not dry_run:
         BUILD_DIR.mkdir(parents=True, exist_ok=True)
-    run([RPI_IMAGE_GEN, "build", *rig_args(config)])
+    with timed("rpi-image-gen build"):
+        run([RPI_IMAGE_GEN, "build", *rig_args(config)])
     if dry_run:
         return config.output_image
     built = find_built_image(config, started_at)
@@ -161,7 +187,6 @@ def build(config):
 
 
 def clean(config):
-    check_rpi_image_gen()
     run([RPI_IMAGE_GEN, "clean", *rig_args(config)])
 
 
@@ -278,8 +303,9 @@ def flash(image, disk_path, allow_fixed):
     disk = check_target(disk_path, size, allow_fixed)
     print(f"Flashing {image.name} to {disk.describe()}", flush=True)
     unmount_partitions(disk.path)
-    run(["sudo", "dd", f"if={image}", f"of={disk.path}", "bs=4M", "conv=fsync", "status=progress"])
-    run(["sync"])
+    with timed("flash"):
+        run(["sudo", "dd", f"if={image}", f"of={disk.path}", "bs=4M", "conv=fsync", "status=progress"])
+        run(["sync"])
     print(f"done - safe to remove {disk.path}")
 
 
@@ -296,6 +322,7 @@ def cmd_list(args):
 
 def cmd_build(args):
     config = find_config(args.config)
+    check_rpi_image_gen()  # before asking about a disk or starting a long build
     target = None
     if args.flash is not None:
         target = select_target(args.flash, args.allow_fixed)  # choose now, not after the build
@@ -311,7 +338,9 @@ def cmd_flash(args):
 
 
 def cmd_clean(args):
-    clean(find_config(args.config))
+    config = find_config(args.config)
+    check_rpi_image_gen()
+    clean(config)
 
 
 # --- command line -------------------------------------------------------------
@@ -364,7 +393,8 @@ def main(argv=None):
     args = parse_args(argv)
     dry_run = args.dry_run
     try:
-        args.func(args)
+        with timed("total"):
+            args.func(args)
     except ScriptError as err:
         print(f"error: {err}", file=sys.stderr)
         return 1

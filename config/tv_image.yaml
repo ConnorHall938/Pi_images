@@ -8,10 +8,12 @@ device:
 
 image:
   name: mytvimage
+  root_part_size: 150%   # was 300% (inherited). Small on purpose: growfs fills the card on first boot
 
 
 layer:
   app: tv-kiosk
+  growfs: growfs
 
 tv_kiosk:
   #url: "https://youtube.com"      # or a file in the image: /var/www/html/tv_menu.html

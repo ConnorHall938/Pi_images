@@ -2,8 +2,10 @@
 Collection of Pi images
 
 This repository is one [rpi-image-gen](https://github.com/raspberrypi/rpi-image-gen)
-source tree, laid out like rpi-image-gen itself. `build.py` builds a config by name;
-rpi-image-gen is expected at `../rpi-image-gen` (or set `RPI_IMAGE_GEN` to its executable).
+source tree, laid out like rpi-image-gen itself. `build.py` builds a config by name.
+rpi-image-gen is a git submodule in `rpi-image-gen/`, pinned to a known commit; after a
+fresh clone run `git submodule update --init`. Set `RPI_IMAGE_GEN` to its executable to
+use a different checkout.
 
 ```
 config/<name>.yaml      a buildable config

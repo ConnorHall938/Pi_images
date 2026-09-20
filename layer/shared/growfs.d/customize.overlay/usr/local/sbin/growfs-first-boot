@@ -1,0 +1,49 @@
+#!/bin/sh
+# Grow the root partition to the end of its disk, then grow the ext4 filesystem into it.
+# Run once at first boot by growfs-first-boot.service; a stamp file stops later runs.
+set -eu
+
+STAMP=${GROWFS_STAMP:-/var/lib/growfs-first-boot/done}  # overridable so it can be tested
+
+log() { echo "growfs-first-boot: $*" >&2; }
+skip() { log "$*; skipping"; exit 0; }
+
+[ -e "$STAMP" ] && exit 0
+
+root_src=$(findmnt -no SOURCE / 2>/dev/null || true)
+case "$root_src" in
+    /dev/*) ;;
+    *) skip "root source '$root_src' is not a block device" ;;
+esac
+
+fstype=$(findmnt -no FSTYPE / 2>/dev/null || true)
+[ "$fstype" = ext4 ] || skip "root filesystem is '$fstype', not ext4"
+
+# The image boots by name (root=/dev/disk/by-slot/system), so findmnt can report a
+# symlink. Resolve it first: the name of the symlink says nothing about disk or partition.
+root_dev=$(readlink -f "$root_src")
+name=${root_dev##*/}
+
+part=$(cat "/sys/class/block/$name/partition" 2>/dev/null || true)
+case "$part" in
+    ''|*[!0-9]*) skip "cannot work out the partition number of $root_dev" ;;
+esac
+
+disk=$(lsblk -no PKNAME "$root_dev" 2>/dev/null | head -n 1 || true)
+[ -n "$disk" ] || skip "cannot work out which disk holds $root_dev"
+
+# growpart exits 0 when it grew the partition, 1 when it already fills the disk, and
+# 2 or more on a real error. `|| rc=$?` keeps set -e from stopping on the exit 1 case.
+rc=0
+growpart "/dev/$disk" "$part" || rc=$?
+case "$rc" in
+    0|1) ;;
+    *) log "growpart /dev/$disk $part failed (exit $rc); will try again next boot"; exit 1 ;;
+esac
+
+# Online grow of the mounted ext4 filesystem; does nothing if it already fills the partition.
+resize2fs "$root_dev"
+
+mkdir -p "$(dirname "$STAMP")"
+: > "$STAMP"
+log "root filesystem now fills /dev/$disk"

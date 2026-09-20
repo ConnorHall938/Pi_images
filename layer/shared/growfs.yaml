@@ -1,0 +1,19 @@
+# METABEGIN
+# X-Env-Layer-Name: growfs
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Category: system
+# X-Env-Layer-Desc: Grows the root partition to the end of its disk, then grows
+#  the ext4 filesystem into it, once, on first boot. Lets a small image fill
+#  whatever card it is written to. Needs an MBR/DOS disk with root as the last
+#  partition and an ext4 root filesystem; on anything else it logs why and does
+#  nothing. Based on the cm5-programming-jig layer's growfs unit.
+# X-Env-Layer-RequiresProvider: systemd
+# METAEND
+---
+mmdebstrap:
+  packages:
+    - cloud-guest-utils
+  customize-hooks:
+    # The script and the unit come from growfs.d/customize.overlay/
+    - chmod 755 "$1/usr/local/sbin/growfs-first-boot"
+    - $BDEBSTRAP_HOOKS/enable-units "$1" growfs-first-boot
