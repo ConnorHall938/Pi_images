@@ -16,3 +16,13 @@ bin-release/
 # Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
 # should NOT be excluded as they contain compiler settings and other important
 # information for Eclipse / Flash Builder.
+
+# rpi-image-gen build artefacts
+build/
+output/
+
+# Secrets: Wi-Fi profiles
+*.psk
+
+# Generated from tv_image/splash.png by the Makefile
+tv_image/splash.tga

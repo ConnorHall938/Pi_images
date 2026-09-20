@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #10131a;
+    --surface: #1a1f29;
+    --surface-2: #212734;
+    --text: #e8ecf1;
+    --muted: #7c8698;
+    --accent: #ff9f43;
+  }
+  *{ box-sizing: border-box; }
+  html,body{
+    margin:0; padding:0; height:100%; width:100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Sora', system-ui, sans-serif;
+    overflow: hidden;
+  }
+  body{
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    padding: 48px 64px;
+    height:100vh;
+  }
+  .top-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+  }
+  .greeting{
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .greeting span{
+    display:block;
+    margin-top: 4px;
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--muted);
+  }
+  .clock{
+    text-align:right;
+    font-size: 34px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .clock span{
+    display:block;
+    margin-top: 4px;
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--muted);
+    text-align:right;
+  }
+  .tiles{
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 28px;
+    align-self:center;
+    width:100%;
+    max-width: 1100px;
+  }
+  .tile{
+    position:relative;
+    aspect-ratio: 1.5 / 1;
+    border-radius: 18px;
+    background: var(--surface);
+    border: 2px solid transparent;
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-end;
+    padding: 20px;
+    cursor:pointer;
+    text-decoration:none;
+    color: var(--text);
+    outline:none;
+    transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+  }
+  .tile::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    border-radius:16px;
+    opacity:0.16;
+    background: var(--tile-color);
+  }
+  .tile-name{
+    position:relative;
+    font-size: 19px;
+    font-weight: 600;
+  }
+  .tile-sub{
+    position:relative;
+    font-size: 13px;
+    color: var(--muted);
+    margin-top:2px;
+  }
+  .tile:focus, .tile:hover{
+    transform: translateY(-4px);
+    border-color: var(--accent);
+    background: var(--surface-2);
+  }
+  .tile:focus .tile-sub, .tile:hover .tile-sub{
+    color: var(--text);
+    opacity: 0.75;
+  }
+  .hint{
+    text-align:center;
+    color: var(--muted);
+    font-size: 14px;
+    letter-spacing: 0.02em;
+  }
+</style>
+</head>
+<body>
+
+  <div class="top-row">
+    <div class="greeting" id="greeting">Good evening
+      <span id="date"></span>
+    </div>
+    <div class="clock" id="clock">--:--
+      <span id="ampm"></span>
+    </div>
+  </div>
+
+  <div class="tiles" id="tiles">
+    <a class="tile" tabindex="0" style="--tile-color:#E50914" href="https://www.netflix.com" data-name="Netflix">
+      <div class="tile-name">Netflix</div>
+      <div class="tile-sub">Shows &amp; films</div>
+    </a>
+    <a class="tile" tabindex="0" style="--tile-color:#FF0000" href="https://www.youtube.com" data-name="YouTube">
+      <div class="tile-name">YouTube</div>
+      <div class="tile-sub">Video</div>
+    </a>
+    <a class="tile" tabindex="0" style="--tile-color:#113CCF" href="https://www.disneyplus.com" data-name="Disney+">
+      <div class="tile-name">Disney+</div>
+      <div class="tile-sub">Shows &amp; films</div>
+    </a>
+    <a class="tile" tabindex="0" style="--tile-color:#00A8E1" href="https://www.amazon.co.uk/gp/video/storefront" data-name="Prime Video">
+      <div class="tile-name">Prime Video</div>
+      <div class="tile-sub">Shows &amp; films</div>
+    </a>
+  </div>
+
+  <div class="hint">Use the arrow keys to move, OK / Enter to open</div>
+
+<script>
+  // Clock
+  function updateClock(){
+    const now = new Date();
+    let h = now.getHours();
+    const m = String(now.getMinutes()).padStart(2,'0');
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if (h === 0) h = 12;
+    document.getElementById('clock').childNodes[0].textContent = `${h}:${m} `;
+    document.getElementById('ampm').textContent = ampm;
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    document.getElementById('date').textContent =
+      `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]}`;
+
+    const hour = now.getHours();
+    document.getElementById('greeting').childNodes[0].textContent =
+      (hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening') + '\n';
+  }
+  updateClock();
+  setInterval(updateClock, 15000);
+
+  // Grid keyboard navigation (for CEC / remote arrow keys)
+  const tiles = Array.from(document.querySelectorAll('.tile'));
+  const cols = 4;
+  let focusIndex = 0;
+  tiles[0].focus();
+
+  document.addEventListener('keydown', (e) => {
+    const current = document.activeElement;
+    let idx = tiles.indexOf(current);
+    if (idx === -1) idx = focusIndex;
+
+    switch(e.key){
+      case 'ArrowRight':
+        idx = Math.min(idx + 1, tiles.length - 1);
+        break;
+      case 'ArrowLeft':
+        idx = Math.max(idx - 1, 0);
+        break;
+      case 'ArrowDown':
+        idx = Math.min(idx + cols, tiles.length - 1);
+        break;
+      case 'ArrowUp':
+        idx = Math.max(idx - cols, 0);
+        break;
+      case 'Enter':
+        tiles[idx].click();
+        return;
+      default:
+        return;
+    }
+    e.preventDefault();
+    focusIndex = idx;
+    tiles[idx].focus();
+  });
+</script>
+
+</body>
+</html>
