@@ -23,6 +23,3 @@ output/
 
 # Secrets: Wi-Fi profiles
 *.psk
-
-# Generated from tv_image/splash.png by the Makefile
-tv_image/splash.tga

@@ -12,18 +12,12 @@ image:
 
 layer:
   app: tv-kiosk
-  extra: rpi-splash-screen
-
-# Generated from splash.png by `make tv_image` (see tools/png2splash.py)
-splash:
-  image_path: ${@SRCROOT}/splash.tga
 
 tv_kiosk:
   #url: "https://youtube.com"      # or a file in the image: /var/www/html/tv_menu.html
   url: /var/www/html/tv_menu.html
   user: tv-kiosk
-  rotation: 270                     # 0, 90, 180 or 270 (270 if 90 turns the wrong way)
-
+  rotation: 90                     # 0, 90, 180 or 270 (270 if 90 turns the wrong way)
 # Wifi
 iwd:
   profile: ${@SRCROOT}/VM8428755.psk
