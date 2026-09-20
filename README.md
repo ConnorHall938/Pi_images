@@ -1,31 +1,14 @@
 # Pi_images
-Collection of Pi images
 
-This repository is one [rpi-image-gen](https://github.com/raspberrypi/rpi-image-gen)
-source tree, laid out like rpi-image-gen itself. `build.py` builds a config by name.
-rpi-image-gen is a git submodule in `rpi-image-gen/`, pinned to a known commit; after a
-fresh clone run `git submodule update --init`. Set `RPI_IMAGE_GEN` to its executable to
-use a different checkout.
-
-```
-config/<name>.yaml      a buildable config
-layer/shared/           layers reused by several images
-layer/<image>/          layers (and their .d hooks/overlays) for one image
-assets/<image>/         files a config points at: ${@SRCROOT}/assets/<image>/...
-```
+Raspberry Pi images, built with [rpi-image-gen](https://github.com/raspberrypi/rpi-image-gen) (a git submodule).
 
 ```bash
-./build.py list                              # available configs
+git submodule update --init                  # once, after cloning
 ./build.py build tv_image                    # -> output/tv_image.img
-./build.py build tv_image --flash            # then pick a disk from a numbered list
-./build.py build tv_image --flash /dev/sdb   # then flash that disk
-./build.py flash tv_image [/dev/sdb]         # flash an image that is already built
-./build.py clean tv_image                    # remove the build tree
+./build.py build tv_image --flash            # then pick a disk from a list
+./build.py build tv_image --flash /dev/sdb   # or name the disk
 ```
 
-Put `--flash` last. Add `--dry-run` before the command to print what would run
-without doing it. Flashing refuses the disk the machine is running from, and
-anything that does not look removable unless `--allow-fixed` is given.
+Other commands: `list`, `flash`, `clean`. Add `--dry-run` before the command to see what it would do.
 
-Every layer under `layer/` is loaded for every build, so a broken layer file fails
-all of them. Layer names must be unique.
+Layout: `config/` has the configs, `layer/` the layers, `assets/` the files configs point at.
