@@ -1,0 +1,72 @@
+# Home Assistant stack. Installed as ~/app/compose.yaml on the device, so every
+# ./path below is relative to ~/app/ (which is the docker layer's `files:` directory).
+#
+# Optional settings go in ~/app/.env (git-ignored, ships with `files:`):
+#   ZIGBEE_DEVICE=/dev/serial/by-id/usb-...    a different Zigbee coordinator (default: the Sonoff dongle below)
+#   FRIGATE_RTSP_PASSWORD=...                  camera password, used as {FRIGATE_RTSP_PASSWORD}
+#   TZ=Europe/London
+
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    restart: unless-stopped
+    network_mode: host            # device discovery; UI on :8123
+    volumes:
+      - ./config:/config
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      TZ: ${TZ:-Europe/London}
+    depends_on:
+      - mosquitto
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1883:1883"     # for Home Assistant (host network); the other containers use the service name
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"               # web UI
+    volumes:
+      - ./zigbee2mqtt:/app/data
+      - /run/udev:/run/udev:ro
+    devices:
+      # Sonoff Zigbee 3.0 USB Dongle Plus V2. By-id paths include the dongle's serial
+      # number, so a different dongle needs ZIGBEE_DEVICE. Inside the container it is
+      # always /dev/ttyACM0.
+      - "${ZIGBEE_DEVICE:-/dev/serial/by-id/usb-Itead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_V2_347094d3deffef11b7e89a256d9880ab-if00-port0}:/dev/ttyACM0"
+    environment:
+      TZ: ${TZ:-Europe/London}
+    depends_on:
+      - mosquitto
+
+  frigate:
+    image: ghcr.io/blakeblackshear/frigate:stable
+    restart: unless-stopped
+    shm_size: 256mb
+    ports:
+      - "8971:8971"               # web UI (authenticated)
+      - "127.0.0.1:5000:5000"     # unauthenticated API, for Home Assistant's Frigate integration
+      - "8554:8554"               # RTSP restream
+    volumes:
+      - ./frigate:/config
+      - ./frigate_media:/media/frigate
+      - /etc/localtime:/etc/localtime:ro
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+    environment:
+      TZ: ${TZ:-Europe/London}
+      FRIGATE_RTSP_PASSWORD: ${FRIGATE_RTSP_PASSWORD:-}
+    depends_on:
+      - mosquitto
+
+volumes:
+  mosquitto_data:

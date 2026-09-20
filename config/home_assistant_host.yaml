@@ -12,21 +12,25 @@ image:
 
 
 layer:
-  app: homeassistant-host
   kiosk: kiosk
+  containers: docker
   growfs: growfs
 
 kiosk:
-  #url: "https://youtube.com"
+  url: http://localhost:8123        # Home Assistant, from the docker stack
   user: ha-kiosk
   rotation: 90                     # 0, 90, 180 or 270 (270 if 90 turns the wrong way)
+docker:
+  user: ha
+  compose: ${@SRCROOT}/resources/ha_config/compose.yaml
+  #files: ${@SRCROOT}/resources/ha_config/files   # copied into ~/app/, so ./config:/config in the compose file finds files/config/
 # Wifi
 iwd:
-  profile: ${@SRCROOT}/assets/tv_image/VM8428755.psk
+  profile: ${@SRCROOT}/environment/VM8428755.psk
 ieee80211:
   regdom: GB
 
 #SSH
 ssh:
-  pubkey_user1: ${@SRCROOT}/assets/tv_image/ssh.pub
+  pubkey_user1: ${@SRCROOT}/environment/ssh.pub
   pubkey_only: y

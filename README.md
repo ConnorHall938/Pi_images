@@ -11,4 +11,4 @@ git submodule update --init                  # once, after cloning
 
 Other commands: `list`, `flash`, `clean`. Add `--dry-run` before the command to see what it would do.
 
-Layout: `config/` has the configs, `layer/` the layers, `assets/` the files configs point at.
+Layout: `config/` has the configs, `layer/` the layers, `resources/` the files configs put in the image (committed), `environment/` the local keys and Wi-Fi profiles configs point at (git-ignored).

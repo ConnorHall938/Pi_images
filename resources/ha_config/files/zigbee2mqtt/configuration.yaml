@@ -1,0 +1,22 @@
+# Starting configuration. Zigbee2MQTT rewrites this file at runtime (it generates
+# the network keys on first start, and records paired devices), so it is only the
+# starting state; changes made on the device are not put back here.
+homeassistant:
+  enabled: true
+
+frontend:
+  enabled: true
+  port: 8080
+
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://mosquitto:1883
+
+serial:
+  port: /dev/ttyACM0
+  adapter: ember      # Sonoff Dongle Plus V2 (Silicon Labs EFR32MG21). Remove it if it is not detected
+
+advanced:
+  network_key: GENERATE
+  pan_id: GENERATE
+  ext_pan_id: GENERATE

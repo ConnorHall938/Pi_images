@@ -1,0 +1,70 @@
+# METABEGIN
+# X-Env-Layer-Name: docker
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Category: container
+# X-Env-Layer-Desc: Runs a Docker Compose stack at boot as a dedicated user. Builds
+#  on the docker-debian-trixie engine layer: makes the user (a member of the docker
+#  group), installs the config's compose file into that user's home, and enables a
+#  systemd service that brings it up once the network and clock are ready. Images
+#  are pulled on first boot, not baked into the image.
+# X-Env-Layer-Requires: docker-debian-trixie,device-user-admin,systemd-net-min,systemd-timesyncd
+#
+# X-Env-VarPrefix: docker
+#
+# X-Env-Var-assetdir: ${DOTD}
+# X-Env-Var-assetdir-Required: n
+# X-Env-Var-assetdir-Valid: dir
+# X-Env-Var-assetdir-Set: y
+#
+# X-Env-Var-user: docker-user
+# X-Env-Var-user-Desc: Account the compose stack runs as. Created if it does not
+#  exist, and added to the docker group, which is root-equivalent on the device.
+# X-Env-Var-user-Required: n
+# X-Env-Var-user-Valid: regex:^[a-z_][a-z0-9_-]*$
+# X-Env-Var-user-Set: y
+#
+# X-Env-Var-compose:
+# X-Env-Var-compose-Desc: Absolute path to the compose file on the build host (eg
+#  a file under the repo's resources/ folder). Required: this layer exists to run
+#  it. Installed as compose.yaml in the user's ~/app/ and started at boot. The
+#  build fails if it is unset or the file does not exist. No spaces in the path.
+# X-Env-Var-compose-Required: y
+# X-Env-Var-compose-Valid: regex:^/[^ ]+$
+# X-Env-Var-compose-Set: y
+#
+# X-Env-Var-files:
+# X-Env-Var-files-Desc: Absolute path to a directory on the build host whose
+#  contents are copied into the user's ~/app/, next to compose.yaml, so relative
+#  bind mounts in the compose file (eg ./config:/config) resolve to them. Owned
+#  by the user. Optional; if set but not a directory, the build fails. No spaces
+#  in the path.
+# X-Env-Var-files-Required: n
+# X-Env-Var-files-Valid: regex:^(/[^ ]+)?$
+# X-Env-Var-files-Set: y
+# METAEND
+---
+mmdebstrap:
+  customize-hooks:
+    - |
+      set -eu
+      chroot $1 groupadd -f -r docker
+      if ! chroot $1 id -u "$IGconf_docker_user" >/dev/null 2>&1; then
+        chroot $1 adduser --disabled-password --gecos "" "$IGconf_docker_user"
+      fi
+      chroot $1 adduser "$IGconf_docker_user" docker
+    - |
+      set -eu
+      [ -n "${IGconf_docker_compose:-}" ] || { echo "docker: compose is not set" >&2; exit 1; }
+      [ -f "$IGconf_docker_compose" ] || { echo "docker: compose file not found: $IGconf_docker_compose" >&2; exit 1; }
+      export DOCKER_USER="$IGconf_docker_user"
+      export DOCKER_APPDIR="/home/$IGconf_docker_user/app"
+      install -d -m 0755 "$1$DOCKER_APPDIR"
+      # Supporting files first, so compose is never overwritten by one of them
+      if [ -n "${IGconf_docker_files:-}" ]; then
+        [ -d "$IGconf_docker_files" ] || { echo "docker: files directory not found: $IGconf_docker_files" >&2; exit 1; }
+        cp -R --preserve=mode,timestamps "$IGconf_docker_files"/. "$1$DOCKER_APPDIR"/
+      fi
+      install -m 0644 "$IGconf_docker_compose" "$1$DOCKER_APPDIR/compose.yaml"
+      chroot $1 chown -R "$DOCKER_USER:$DOCKER_USER" "$DOCKER_APPDIR"
+      envsubst '$DOCKER_USER $DOCKER_APPDIR' < ${IGconf_docker_assetdir}/docker-app.service.tpl > $1/etc/systemd/system/docker-app.service
+      $BDEBSTRAP_HOOKS/enable-units "$1" docker-app

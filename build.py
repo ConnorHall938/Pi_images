@@ -12,7 +12,9 @@ This repository is one rpi-image-gen source tree, laid out like rpi-image-gen it
 
     config/NAME.yaml       a config, built with `./build.py build NAME`
     layer/                 layers: shared ones in layer/shared/, others per image
-    assets/<image>/        files a config points at, as ${@SRCROOT}/assets/<image>/...
+    resources/             files a config puts in the image, as ${@SRCROOT}/resources/...
+    environment/           local secrets a config points at (ssh.pub, *.psk), git-ignored;
+                           referenced as ${@SRCROOT}/environment/...
 
 The repository root is handed to rpi-image-gen as the source directory (-S), so its
 layers and config are found automatically, alongside rpi-image-gen's own.
