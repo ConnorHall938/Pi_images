@@ -22,7 +22,7 @@ docker:
 |------------|---------------|---------|
 | `user`     | `docker-user` | Account the stack runs as. Created if it doesn't exist, and added to the `docker` group. Membership of that group is root-equivalent on the device. |
 | `compose`  | **required**  | The compose file on the build host, as an absolute path, no spaces. Installed as `~/app/compose.yaml` for that user and started at boot. The build fails if it is unset or the file doesn't exist. |
-| `files`    | *(empty)*     | A directory on the build host, as an absolute path, no spaces. Its contents are copied into `~/app/` next to `compose.yaml`, so relative bind mounts in the compose file (e.g. `./config:/config`) find them. Owned by the user. If set but not a directory, the build fails. |
+| `files`    | *(empty)*     | A directory on the build host, as an absolute path, no spaces. Its contents are copied into `~/app/` next to `compose.yaml`, so relative bind mounts in the compose file (e.g. `./config:/config`) find them. Owned by the user. Symlinks are followed and copied as what they point to, so it can link to content elsewhere in the repo (e.g. a git submodule); a broken link fails the build. If set but not a directory, the build fails. |
 | `assetdir` | `${DOTD}`     | Where the layer's own files are read from (`docker.d/`). Leave alone. |
 
 The engine layer shares the `docker:` section, so `trust_user1: y` (which adds the image's main user to the `docker` group) goes in the same place.

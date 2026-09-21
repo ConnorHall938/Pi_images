@@ -1,0 +1,20 @@
+# Loads the default set of integrations. Do not remove.
+default_config:
+
+homeassistant:
+  auth_providers:
+    # The kiosk browser runs on this device, so skip the login for connections from it.
+    # With no trusted_users, login is skipped when exactly one user exists (the owner
+    # created during onboarding); add a second user and the login page returns for
+    # localhost too. This provider must stay above the homeassistant one.
+    - type: trusted_networks
+      trusted_networks:
+        - 127.0.0.1
+        - "::1"
+      allow_bypass_login: true
+    - type: homeassistant
+
+# The UI's automation, script and scene editors write to these files.
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml

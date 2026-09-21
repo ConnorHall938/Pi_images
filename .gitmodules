@@ -1,3 +1,6 @@
 [submodule "rpi-image-gen"]
 	path = rpi-image-gen
 	url = https://github.com/raspberrypi/rpi-image-gen.git
+[submodule "resources/ha_config/frigate-hass-integration"]
+	path = resources/ha_config/frigate-hass-integration
+	url = https://github.com/blakeblackshear/frigate-hass-integration

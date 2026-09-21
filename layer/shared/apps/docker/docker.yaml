@@ -36,8 +36,8 @@
 # X-Env-Var-files-Desc: Absolute path to a directory on the build host whose
 #  contents are copied into the user's ~/app/, next to compose.yaml, so relative
 #  bind mounts in the compose file (eg ./config:/config) resolve to them. Owned
-#  by the user. Optional; if set but not a directory, the build fails. No spaces
-#  in the path.
+#  by the user. Symlinks in it are followed. Optional; if set but not a
+#  directory, the build fails. No spaces in the path.
 # X-Env-Var-files-Required: n
 # X-Env-Var-files-Valid: regex:^(/[^ ]+)?$
 # X-Env-Var-files-Set: y
@@ -62,7 +62,9 @@ mmdebstrap:
       # Supporting files first, so compose is never overwritten by one of them
       if [ -n "${IGconf_docker_files:-}" ]; then
         [ -d "$IGconf_docker_files" ] || { echo "docker: files directory not found: $IGconf_docker_files" >&2; exit 1; }
-        cp -R --preserve=mode,timestamps "$IGconf_docker_files"/. "$1$DOCKER_APPDIR"/
+        # -L: a symlink in the directory is copied as what it points to, so files can
+        # link to content elsewhere in the repo (eg a git submodule)
+        cp -RL --preserve=mode,timestamps "$IGconf_docker_files"/. "$1$DOCKER_APPDIR"/
       fi
       install -m 0644 "$IGconf_docker_compose" "$1$DOCKER_APPDIR/compose.yaml"
       chroot $1 chown -R "$DOCKER_USER:$DOCKER_USER" "$DOCKER_APPDIR"

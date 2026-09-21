@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "minor_version": 5,
+  "key": "core.config_entries",
+  "data": {
+    "entries": [
+      {
+        "created_at": "2026-09-21T00:00:00+00:00",
+        "data": {
+          "broker": "localhost",
+          "port": 1883
+        },
+        "disabled_by": null,
+        "discovery_keys": {},
+        "domain": "mqtt",
+        "entry_id": "01M32MBMJXQD59N7W8D4FQWENA",
+        "minor_version": 1,
+        "modified_at": "2026-09-21T00:00:00+00:00",
+        "options": {},
+        "pref_disable_new_entities": false,
+        "pref_disable_polling": false,
+        "source": "user",
+        "subentries": [],
+        "title": "localhost",
+        "unique_id": null,
+        "version": 2
+      },
+      {
+        "created_at": "2026-09-21T00:00:00+00:00",
+        "data": {
+          "url": "http://localhost:5000"
+        },
+        "disabled_by": null,
+        "discovery_keys": {},
+        "domain": "frigate",
+        "entry_id": "01M32MBMJX0NQBNFWDRBCVPJSN",
+        "minor_version": 1,
+        "modified_at": "2026-09-21T00:00:00+00:00",
+        "options": {},
+        "pref_disable_new_entities": false,
+        "pref_disable_polling": false,
+        "source": "user",
+        "subentries": [],
+        "title": "localhost:5000",
+        "unique_id": null,
+        "version": 2
+      }
+    ]
+  }
+}

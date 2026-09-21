@@ -44,6 +44,17 @@
 # X-Env-Var-rotation-Required: n
 # X-Env-Var-rotation-Valid: regex:^(0|90|180|270)$
 # X-Env-Var-rotation-Set: y
+#
+# X-Env-Var-touch_matrix:
+# X-Env-Var-touch_matrix-Desc: Six numbers, space separated, for libinput's
+#  calibration matrix, applied to every touchscreen. The compositor rotates the
+#  picture but not the touch input, so by default a matrix matching rotation is
+#  used (none for 0). Set this only if touches land in the wrong place, eg
+#  the opposite direction's matrix (eg "0 1 0 -1 0 1" for a 90 rotation). See
+#  libinput's LIBINPUT_CALIBRATION_MATRIX.
+# X-Env-Var-touch_matrix-Required: n
+# X-Env-Var-touch_matrix-Valid: regex:^(-?[0-9.]+( -?[0-9.]+){5})?$
+# X-Env-Var-touch_matrix-Set: y
 # METAEND
 ---
 mmdebstrap:
@@ -97,6 +108,21 @@ mmdebstrap:
       exec /usr/bin/chromium "\$url" --kiosk --noerrdialogs --disable-infobars --no-first-run --force-dark-mode --enable-features=OverlayScrollbar,WebUIDarkMode --start-maximized --user-data-dir=/run/$KIOSK_RUNDIR_NAME/chromium
       EOF
       chmod 755 "$1/usr/local/bin/kiosk-session"
+      # wlr-randr turns the picture, not the touchscreen, so tell libinput how the
+      # panel is turned. wlr-randr --transform N turns the picture counter-clockwise by
+      # N degrees (confirmed on a real screen), and these matrices match that.
+      matrix="${IGconf_kiosk_touch_matrix:-}"
+      if [ -z "$matrix" ]; then
+        case "$IGconf_kiosk_rotation" in
+          90)  matrix="0 -1 1 1 0 0" ;;
+          180) matrix="-1 0 1 0 -1 1" ;;
+          270) matrix="0 1 0 -1 0 1" ;;
+        esac
+      fi
+      if [ -n "$matrix" ]; then
+        install -d "$1/etc/udev/rules.d"
+        printf 'ACTION=="add|change", SUBSYSTEM=="input", KERNEL=="event[0-9]*", ENV{ID_INPUT_TOUCHSCREEN}=="1", ENV{LIBINPUT_CALIBRATION_MATRIX}="%s"\n' "$matrix" > "$1/etc/udev/rules.d/99-kiosk-touch.rules"
+      fi
       export KIOSK_APP=/usr/local/bin/kiosk-session
       envsubst < ${IGconf_kiosk_assetdir}/kiosk.service.tpl > $1/etc/systemd/system/kiosk.service
     - $BDEBSTRAP_HOOKS/enable-units "$1" kiosk
