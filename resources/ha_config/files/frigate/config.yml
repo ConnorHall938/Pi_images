@@ -1,6 +1,10 @@
 # Starting configuration. Frigate needs at least one camera to start, so this is a
 # disabled placeholder: copy it, fill in the real stream, and remove `enabled: false`.
-# {FRIGATE_RTSP_PASSWORD} is filled from the environment (set it in ~/app/.env).
+#
+# To keep a camera password out of this file, put the name FRIGATE_RTSP_PASSWORD in curly
+# braces in the URL and set FRIGATE_RTSP_PASSWORD=... in ~/app/.env. Frigate will not
+# start if the config names a FRIGATE_ variable that is not set, even in a disabled
+# camera, so the placeholder below does not use one.
 mqtt:
   host: mosquitto
 
@@ -13,7 +17,7 @@ cameras:
     enabled: false
     ffmpeg:
       inputs:
-        - path: rtsp://user:{FRIGATE_RTSP_PASSWORD}@192.168.1.10:554/stream
+        - path: rtsp://user:password@192.168.1.10:554/stream
           roles:
             - detect
             - record

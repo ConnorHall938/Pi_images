@@ -3,7 +3,9 @@
 #
 # Optional settings go in ~/app/.env (git-ignored, ships with `files:`):
 #   ZIGBEE_DEVICE=/dev/serial/by-id/usb-...    a different Zigbee coordinator (default: the Sonoff dongle below)
-#   FRIGATE_RTSP_PASSWORD=...                  camera password, used as {FRIGATE_RTSP_PASSWORD}
+#   FRIGATE_RTSP_PASSWORD=...                  camera password, used as {FRIGATE_RTSP_PASSWORD} in
+#                                              frigate/config.yml (Frigate won't start if the config
+#                                              names a variable that is not set here)
 #   TZ=Europe/London
 
 services:
