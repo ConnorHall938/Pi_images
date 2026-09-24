@@ -2,11 +2,11 @@
 """Build Raspberry Pi images with rpi-image-gen, and optionally flash them.
 
     ./build.py list                              show the available configs
-    ./build.py build tv_image                    build -> output/tv_image.img
-    ./build.py build tv_image --flash            ...then pick a disk from a list
-    ./build.py build tv_image --flash /dev/sdb   ...then flash that disk
-    ./build.py flash tv_image [/dev/sdb]         flash an image that is already built
-    ./build.py clean tv_image                    remove the build tree for that config
+    ./build.py build build_host                  build -> output/build_host.img
+    ./build.py build build_host --flash          ...then pick a disk from a list
+    ./build.py build build_host --flash /dev/sdb ...then flash that disk
+    ./build.py flash build_host [/dev/sdb]       flash an image that is already built
+    ./build.py clean build_host                  remove the build tree for that config
 
 This repository is one rpi-image-gen source tree, laid out like rpi-image-gen itself:
 
@@ -96,7 +96,7 @@ def capture(cmd, cwd=None):
 
 @dataclass(frozen=True)
 class Config:
-    name: str  # what you type, e.g. tv_image
+    name: str  # what you type, e.g. build_host
     file: Path  # config/<name>.yaml
 
     @property
@@ -368,7 +368,7 @@ def parse_args(argv):
     listing.set_defaults(func=cmd_list)
 
     building = commands.add_parser("build", help="build a config")
-    building.add_argument("config", help="config name, e.g. tv_image")
+    building.add_argument("config", help="config name, e.g. build_host")
     building.add_argument("--flash", nargs="?", const="", type=device_path, metavar="DEVICE",
                           help="flash afterwards; without DEVICE, pick from a list")
     building.add_argument("--allow-fixed", action="store_true",
@@ -376,7 +376,7 @@ def parse_args(argv):
     building.set_defaults(func=cmd_build)
 
     flashing = commands.add_parser("flash", help="flash an image that is already built")
-    flashing.add_argument("config", help="config name, e.g. tv_image")
+    flashing.add_argument("config", help="config name, e.g. build_host")
     flashing.add_argument("device", nargs="?", type=device_path,
                           help="target disk; omit to pick from a list")
     flashing.add_argument("--allow-fixed", action="store_true",
@@ -384,7 +384,7 @@ def parse_args(argv):
     flashing.set_defaults(func=cmd_flash)
 
     cleaning = commands.add_parser("clean", help="remove the build tree for a config")
-    cleaning.add_argument("config", help="config name, e.g. tv_image")
+    cleaning.add_argument("config", help="config name, e.g. build_host")
     cleaning.set_defaults(func=cmd_clean)
 
     return parser.parse_args(argv)

@@ -1,0 +1,110 @@
+# METABEGIN
+# X-Env-Layer-Name: git-runner
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Category: app
+# X-Env-Layer-Desc: Self-hosted GitHub Actions runner for one repository. Makes a
+#  dedicated user and installs two systemd services: git-runner-setup, which on
+#  first boot downloads the runner, checks its hash and registers it with the repo
+#  using the token file from the config, and git-runner, which then keeps run.sh
+#  running. The runner itself is not baked into the image.
+# X-Env-Layer-Requires: device-user-admin,systemd-net-min,systemd-timesyncd
+#
+# X-Env-VarPrefix: runner
+#
+# X-Env-Var-assetdir: ${DOTD}
+# X-Env-Var-assetdir-Required: n
+# X-Env-Var-assetdir-Valid: dir
+# X-Env-Var-assetdir-Set: y
+#
+# X-Env-Var-user: runner
+# X-Env-Var-user-Desc: Account the runner runs as, and so the account workflow
+#  jobs run as. Created if it does not exist. The runner is installed in its
+#  ~/actions-runner/.
+# X-Env-Var-user-Required: n
+# X-Env-Var-user-Valid: regex:^[a-z_][a-z0-9_-]*$
+# X-Env-Var-user-Set: y
+#
+# X-Env-Var-repo:
+# X-Env-Var-repo-Desc: URL of the GitHub repository to register the runner with,
+#  eg https://github.com/owner/repo. Passed to config.sh --url.
+# X-Env-Var-repo-Required: y
+# X-Env-Var-repo-Valid: regex:^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?$
+# X-Env-Var-repo-Set: y
+#
+# X-Env-Var-token_file:
+# X-Env-Var-token_file-Desc: Absolute path to a file on the build host (eg under
+#  the repo's environment/ folder) holding the token for config.sh --token:
+#  either a runner registration token (from the repo's Settings > Actions >
+#  Runners > New runner; it expires an hour after it is made) or a personal
+#  access token with Administration read and write on the repo, which is
+#  exchanged for a registration token at setup. Copied into the image, readable
+#  only by the runner user. The build fails if it does not exist. No spaces.
+# X-Env-Var-token_file-Required: y
+# X-Env-Var-token_file-Valid: regex:^/[^ ]+$
+# X-Env-Var-token_file-Set: y
+#
+# X-Env-Var-name:
+# X-Env-Var-name-Desc: Name the runner registers under. Empty means the device's
+#  hostname. A runner of the same name already on the repo is replaced.
+# X-Env-Var-name-Required: n
+# X-Env-Var-name-Valid: regex:^[A-Za-z0-9_.-]*$
+# X-Env-Var-name-Set: y
+#
+# X-Env-Var-labels:
+# X-Env-Var-labels-Desc: Extra labels for the runner, comma separated, added to
+#  the default self-hosted, Linux and ARM64. No spaces.
+# X-Env-Var-labels-Required: n
+# X-Env-Var-labels-Valid: regex:^[A-Za-z0-9_.,-]*$
+# X-Env-Var-labels-Set: y
+#
+# X-Env-Var-version: 2.337.0
+# X-Env-Var-version-Desc: actions/runner release to download. Change sha256 with it.
+# X-Env-Var-version-Required: n
+# X-Env-Var-version-Valid: regex:^[0-9]+\.[0-9]+\.[0-9]+$
+# X-Env-Var-version-Set: y
+#
+# X-Env-Var-sha256: 9b1dc70626422526e3c94767cf024896beb15da5342a3f4819bf2feac13e0393
+# X-Env-Var-sha256-Desc: SHA-256 of actions-runner-linux-arm64-<version>.tar.gz,
+#  as shown on the release page. Setup stops if the download does not match.
+# X-Env-Var-sha256-Required: n
+# X-Env-Var-sha256-Valid: regex:^[0-9a-f]{64}$
+# X-Env-Var-sha256-Set: y
+# METAEND
+---
+mmdebstrap:
+  packages:
+    - ca-certificates
+    - curl
+    - git
+    # Runtime libraries the runner (.NET) needs, so it does not have to run
+    # bin/installdependencies.sh on the device
+    - libicu76
+    - libkrb5-3
+    - liblttng-ust1t64
+    - libssl3t64
+    - zlib1g
+  customize-hooks:
+    - |
+      set -eu
+      if ! chroot $1 id -u "$IGconf_runner_user" >/dev/null 2>&1; then
+        chroot $1 adduser --disabled-password --gecos "" "$IGconf_runner_user"
+      fi
+    - |
+      set -eu
+      [ -f "$IGconf_runner_token_file" ] || { echo "git-runner: token file not found: $IGconf_runner_token_file" >&2; exit 1; }
+      export RUNNER_USER="$IGconf_runner_user"
+      export RUNNER_HOME="/home/$IGconf_runner_user"
+      export RUNNER_DIR="$RUNNER_HOME/actions-runner"
+      export RUNNER_TOKEN_FILE="$RUNNER_HOME/runner.token"
+      export RUNNER_REPO="${IGconf_runner_repo%/}"
+      export RUNNER_NAME="${IGconf_runner_name:-}"
+      export RUNNER_LABELS="${IGconf_runner_labels:-}"
+      export RUNNER_VERSION="$IGconf_runner_version"
+      export RUNNER_SHA256="$IGconf_runner_sha256"
+      install -m 0600 "$IGconf_runner_token_file" "$1$RUNNER_TOKEN_FILE"
+      chroot $1 chown "$RUNNER_USER:$RUNNER_USER" "$RUNNER_TOKEN_FILE"
+      install -D -m 0755 ${IGconf_runner_assetdir}/git-runner-setup "$1/usr/local/bin/git-runner-setup"
+      vars='$RUNNER_USER $RUNNER_HOME $RUNNER_DIR $RUNNER_TOKEN_FILE $RUNNER_REPO $RUNNER_NAME $RUNNER_LABELS $RUNNER_VERSION $RUNNER_SHA256'
+      envsubst "$vars" < ${IGconf_runner_assetdir}/git-runner-setup.service.tpl > $1/etc/systemd/system/git-runner-setup.service
+      envsubst "$vars" < ${IGconf_runner_assetdir}/git-runner.service.tpl > $1/etc/systemd/system/git-runner.service
+      $BDEBSTRAP_HOOKS/enable-units "$1" git-runner-setup git-runner

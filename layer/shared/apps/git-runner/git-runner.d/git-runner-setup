@@ -1,0 +1,44 @@
+#!/bin/sh
+# Installed by the git-runner layer. Run by git-runner-setup.service, as the runner
+# user, with RUNNER_* set by the unit. Downloads the actions runner and registers it
+# with the repo. Does nothing once the runner is registered.
+set -eu
+
+if [ -f "$RUNNER_DIR/.runner" ]; then
+  echo "git-runner-setup: already registered, nothing to do"
+  exit 0
+fi
+
+tarball="actions-runner-linux-arm64-$RUNNER_VERSION.tar.gz"
+mkdir -p "$RUNNER_DIR"
+cd "$RUNNER_DIR"
+
+if [ ! -x ./config.sh ]; then
+  curl -fsSL -o "$tarball" "https://github.com/actions/runner/releases/download/v$RUNNER_VERSION/$tarball"
+  echo "$RUNNER_SHA256  $tarball" | sha256sum -c -
+  tar xzf "./$tarball"
+  rm -f "./$tarball"
+fi
+
+token=$(tr -d ' \r\n' < "$RUNNER_TOKEN_FILE")
+[ -n "$token" ] || { echo "git-runner-setup: $RUNNER_TOKEN_FILE is empty" >&2; exit 1; }
+
+# A personal access token is swapped for a registration token
+case "$token" in
+  ghp_*|github_pat_*)
+    repo_path=${RUNNER_REPO#https://github.com/}
+    token=$(curl -fsSL -X POST \
+      -H "Authorization: Bearer $token" \
+      -H "Accept: application/vnd.github+json" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "https://api.github.com/repos/$repo_path/actions/runners/registration-token" \
+      | sed -n 's/.*"token": *"\([^"]*\)".*/\1/p')
+    [ -n "$token" ] || { echo "git-runner-setup: could not get a registration token" >&2; exit 1; }
+    ;;
+esac
+
+./config.sh --unattended --replace \
+  --url "$RUNNER_REPO" \
+  --token "$token" \
+  --name "${RUNNER_NAME:-$(hostname)}" \
+  ${RUNNER_LABELS:+--labels "$RUNNER_LABELS"}

@@ -31,6 +31,18 @@
 # X-Env-Var-page-Valid: regex:^(/[^ ]+)?$
 # X-Env-Var-page-Set: y
 #
+# X-Env-Var-envfile:
+# X-Env-Var-envfile-Desc: Absolute path to an environment file on the build host
+#  (eg under the repo's environment/ folder), KEY=value lines, for values that
+#  should not be committed such as tokens. Installed as /etc/kiosk/kiosk.env,
+#  readable only by root, and loaded by kiosk.service. When page is also set,
+#  each ${KEY} in the page is replaced with its value at start up, and the
+#  browser loads that copy (kept in /run, never written to the SD card). The
+#  build fails if it is set but does not exist. No spaces in the path.
+# X-Env-Var-envfile-Required: n
+# X-Env-Var-envfile-Valid: regex:^(/[^ ]+)?$
+# X-Env-Var-envfile-Set: y
+#
 # X-Env-Var-user: kiosk-user
 # X-Env-Var-user-Desc: Account the kiosk runs as.
 # X-Env-Var-user-Required: n
@@ -62,6 +74,7 @@ mmdebstrap:
     - cage
     - chromium
     - curl
+    - gettext-base
     - wlr-randr
   customize-hooks:
     - |
@@ -83,6 +96,13 @@ mmdebstrap:
       fi
       export KIOSK_USER="$IGconf_kiosk_user"
       export KIOSK_RUNDIR_NAME="kiosk"
+      # The environment file's keys, as envsubst's list of variables to fill in the page
+      envvars=""
+      if [ -n "${IGconf_kiosk_envfile:-}" ]; then
+        [ -f "$IGconf_kiosk_envfile" ] || { echo "kiosk: envfile not found: $IGconf_kiosk_envfile" >&2; exit 1; }
+        install -D -m 0600 "$IGconf_kiosk_envfile" "$1/etc/kiosk/kiosk.env"
+        envvars=$(sed -n 's/^[[:space:]]*\([A-Za-z_][A-Za-z0-9_]*\)=.*/$\1/p' "$IGconf_kiosk_envfile" | tr '\n' ' ')
+      fi
       # cage runs this script: rotate the output (if asked), wait for the page, then start the browser.
       # Build-time values are filled in here; \$ keeps a variable for run time.
       mkdir -p "$1/usr/local/bin"
@@ -93,9 +113,20 @@ mmdebstrap:
         out=\$(wlr-randr | head -n 1 | cut -d' ' -f1)
         wlr-randr --output "\$out" --transform "$IGconf_kiosk_rotation" || echo "kiosk-session: rotation failed" >&2
       fi
+      url="$KIOSK_URL"
+      # Fill the page in from kiosk.env (loaded by kiosk.service) into a private copy
+      vars='$envvars'
+      case "\$url" in
+        file://*)
+          if [ -n "\$vars" ]; then
+            page="/run/$KIOSK_RUNDIR_NAME/\$(basename "\${url#file://}")"
+            envsubst "\$vars" < "\${url#file://}" > "\$page"
+            url="file://\$page"
+          fi
+          ;;
+      esac
       # A web page may be served from this device (eg a container still starting), so
       # wait for it to answer, up to 10 minutes, then open the browser regardless.
-      url="$KIOSK_URL"
       case "\$url" in
         http://*|https://*)
           i=0

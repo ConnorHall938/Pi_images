@@ -4,9 +4,9 @@ Raspberry Pi images, built with [rpi-image-gen](https://github.com/raspberrypi/r
 
 ```bash
 git submodule update --init                  # once, after cloning
-./build.py build tv_image                    # -> output/tv_image.img
-./build.py build tv_image --flash            # then pick a disk from a list
-./build.py build tv_image --flash /dev/sdb   # or name the disk
+./build.py build build_host                  # -> output/build_host.img
+./build.py build build_host --flash          # then pick a disk from a list
+./build.py build build_host --flash /dev/sdb # or name the disk
 ```
 
 Other commands: `list`, `flash`, `clean`. Add `--dry-run` before the command to see what it would do.

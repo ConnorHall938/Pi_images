@@ -1,3 +1,5 @@
 # Local secrets and keys: never commit
-*.pub
+#*.pub
 *.psk
+*.token
+*.env

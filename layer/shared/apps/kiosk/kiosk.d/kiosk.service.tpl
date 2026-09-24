@@ -10,6 +10,7 @@ User=$KIOSK_USER
 TTYPath=/dev/tty1
 RuntimeDirectory=$KIOSK_RUNDIR_NAME
 RuntimeDirectoryMode=0700
+EnvironmentFile=-/etc/kiosk/kiosk.env
 Environment="XDG_RUNTIME_DIR=/run/$KIOSK_RUNDIR_NAME"
 Restart=always
 ExecStart=/usr/bin/cage -- $KIOSK_APP

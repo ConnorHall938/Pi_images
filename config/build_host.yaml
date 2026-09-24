@@ -3,23 +3,30 @@ include:
 
 device:
   layer: rpi5
-  hostname: tv-host
-  user1: tv-user
+  hostname: runner
+  user1: github-runner
 
 image:
-  name: mytvimage
+  name: build_host
   root_part_size: 150%   # was 300% (inherited). Small on purpose: growfs fills the card on first boot
 
 
 layer:
   app: kiosk
   growfs: growfs
+  runner: git-runner
 
 kiosk:
-  #url: "https://youtube.com"      # a web page instead of the local one below
-  page: ${@SRCROOT}/resources/tv_menu.html
-  user: tv-kiosk
+  page: ${@SRCROOT}/resources/runner-kiosk.html
+  envfile: ${@SRCROOT}/environment/kiosk.env   # GITHUB_REPO and GITHUB_TOKEN for the page
+  user: runner-kiosk
   rotation: 90                     # 0, 90, 180 or 270 (270 if 90 turns the wrong way)
+
+runner:
+  repo: https://github.com/ConnorHall938/Pi_images
+  token_file: ${@SRCROOT}/environment/git-runner.token
+  user: runner
+
 # Wifi
 iwd:
   profile: ${@SRCROOT}/environment/VM8428755.psk

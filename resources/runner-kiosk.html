@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runner Status</title>
+<style>
+  :root {
+    --bg: #0a0d12;
+    --panel: #12161e;
+    --panel-border: #1f2530;
+    --text: #d6dde6;
+    --text-dim: #6b7685;
+    --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --sans: 'Inter', system-ui, sans-serif;
+    --online: #3ecf8e;
+    --busy: #e0a835;
+    --offline: #e5534b;
+    --accent: #2fb7c3;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    overflow: hidden;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    padding: 32px 40px;
+  }
+
+  /* header */
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+  }
+  .repo-label {
+    font-family: var(--mono);
+    font-size: 15px;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+  }
+  .repo-name {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text);
+    margin-top: 4px;
+  }
+  .clock-block { text-align: right; }
+  .clock {
+    font-family: var(--mono);
+    font-size: 22px;
+    color: var(--text);
+  }
+  .last-updated {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .last-updated.stale { color: var(--offline); }
+
+  /* summary strip */
+  .summary {
+    display: flex;
+    gap: 36px;
+    margin-bottom: 28px;
+  }
+  .summary-item { display: flex; align-items: center; gap: 10px; }
+  .summary-count {
+    font-family: var(--mono);
+    font-size: 32px;
+    font-weight: 600;
+  }
+  .summary-label {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  /* runner grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    overflow-y: auto;
+    padding-right: 4px;
+    flex: 1;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 20px 22px;
+    position: relative;
+  }
+  .card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .card-name {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot.online { background: var(--online); box-shadow: 0 0 8px var(--online); }
+  .dot.offline { background: transparent; border: 2px solid var(--offline); }
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .status-text.online { color: var(--online); }
+  .status-text.offline { color: var(--offline); }
+  .busy-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--busy);
+    border: 1px solid var(--busy);
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-left: 6px;
+  }
+  .labels {
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .label-chip {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    background: #0d1117;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 3px 8px;
+  }
+
+  .empty, .error {
+    margin: auto;
+    text-align: center;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+  .error { color: var(--offline); }
+
+  /* settings */
+  .gear {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    opacity: 0.35;
+    transition: opacity 0.2s;
+  }
+  .gear:hover { opacity: 1; }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  .overlay.open { display: flex; }
+  .settings-panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 28px 32px;
+    width: 380px;
+  }
+  .settings-panel h2 {
+    margin: 0 0 20px;
+    font-size: 16px;
+    color: var(--text);
+  }
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .field input {
+    width: 100%;
+    background: #0d1117;
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 9px 10px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .field-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 5px;
+    line-height: 1.4;
+  }
+  .settings-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 22px;
+  }
+  .btn {
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 9px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--panel-border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #06131a;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div>
+      <div class="repo-label">MONITORING</div>
+      <div class="repo-name" id="repoName">Not configured</div>
+    </div>
+    <div class="clock-block">
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="last-updated" id="lastUpdated">never updated</div>
+    </div>
+  </div>
+
+  <div class="summary" id="summary" style="display:none">
+    <div class="summary-item">
+      <span class="summary-count" style="color:var(--online)" id="countOnline">0</span>
+      <span class="summary-label">online</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-count" style="color:var(--busy)" id="countBusy">0</span>
+      <span class="summary-label">busy</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-count" style="color:var(--offline)" id="countOffline">0</span>
+      <span class="summary-label">offline</span>
+    </div>
+  </div>
+
+  <div class="grid" id="grid">
+    <div class="empty">Open settings to connect a repository.</div>
+  </div>
+
+  <div class="gear" id="gearBtn">⚙</div>
+
+  <div class="overlay" id="overlay">
+    <div class="settings-panel">
+      <h2>Runner dashboard settings</h2>
+      <div class="field">
+        <label>Repository (owner/repo)</label>
+        <input type="text" id="inputRepo" placeholder="myorg/c43-firmware">
+      </div>
+      <div class="field">
+        <label>Personal access token</label>
+        <input type="password" id="inputToken" placeholder="github_pat_...">
+        <div class="field-hint">
+          Needs read access to Actions/runners for this repo — a fine-grained
+          token with "Administration: Read-only" on this repo, or a classic
+          token with the "repo" scope. Stored only in this browser's local
+          storage, never sent anywhere but api.github.com.
+        </div>
+      </div>
+      <div class="field">
+        <label>Refresh interval (seconds)</label>
+        <input type="number" id="inputInterval" value="30" min="10">
+      </div>
+      <div class="settings-actions">
+        <button class="btn" id="cancelBtn">Cancel</button>
+        <button class="btn primary" id="saveBtn">Save & connect</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ---- Filled in at start up from the kiosk's envfile (kiosk.env) ----------
+  // A placeholder left as-is (no envfile, or the key is missing) counts as unset,
+  // and the settings dialog opens instead.
+  const unset = v => !v || v.startsWith('$' + '{');
+  const DEFAULT_CONFIG = {
+    repo: '${GITHUB_REPO}',     // e.g. 'myorg/c43-firmware'
+    token: '${GITHUB_TOKEN}',   // e.g. 'github_pat_xxxxx'
+    interval: 30                // seconds between refreshes
+  };
+  // -----------------------------------------------------------------------
+
+  const gearBtn = document.getElementById('gearBtn');
+  const overlay = document.getElementById('overlay');
+  const cancelBtn = document.getElementById('cancelBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const inputRepo = document.getElementById('inputRepo');
+  const inputToken = document.getElementById('inputToken');
+  const inputInterval = document.getElementById('inputInterval');
+  const repoNameEl = document.getElementById('repoName');
+  const gridEl = document.getElementById('grid');
+  const summaryEl = document.getElementById('summary');
+  const lastUpdatedEl = document.getElementById('lastUpdated');
+  const clockEl = document.getElementById('clock');
+
+  let pollTimer = null;
+  let lastSuccess = null;
+
+  function loadSettings() {
+    try {
+      const stored = JSON.parse(localStorage.getItem('runnerDashboardSettings') || 'null');
+      if (stored) return stored;
+    } catch {}
+    if (!unset(DEFAULT_CONFIG.repo) && !unset(DEFAULT_CONFIG.token)) return DEFAULT_CONFIG;
+    return null;
+  }
+  function saveSettings(s) {
+    try { localStorage.setItem('runnerDashboardSettings', JSON.stringify(s)); } catch {}
+  }
+
+  function openSettings() {
+    const s = loadSettings();
+    if (s) {
+      inputRepo.value = s.repo || '';
+      inputToken.value = s.token || '';
+      inputInterval.value = s.interval || 30;
+    }
+    overlay.classList.add('open');
+  }
+  function closeSettings() { overlay.classList.remove('open'); }
+
+  gearBtn.addEventListener('click', openSettings);
+  cancelBtn.addEventListener('click', closeSettings);
+  saveBtn.addEventListener('click', () => {
+    const repo = inputRepo.value.trim();
+    const token = inputToken.value.trim();
+    const interval = Math.max(10, parseInt(inputInterval.value, 10) || 30);
+    if (!repo || !token) return;
+    saveSettings({ repo, token, interval });
+    closeSettings();
+    startPolling();
+  });
+
+  function renderError(message) {
+    gridEl.innerHTML = `<div class="error">${message}</div>`;
+    summaryEl.style.display = 'none';
+  }
+
+  function renderRunners(runners) {
+    if (!runners.length) {
+      gridEl.innerHTML = '<div class="empty">No runners registered on this repository.</div>';
+      summaryEl.style.display = 'none';
+      return;
+    }
+    let online = 0, busy = 0, offline = 0;
+    gridEl.innerHTML = runners.map(r => {
+      const isOnline = r.status === 'online';
+      isOnline ? online++ : offline++;
+      if (r.busy) busy++;
+      const labels = (r.labels || []).map(l => `<span class="label-chip">${l.name}</span>`).join('');
+      return `
+        <div class="card">
+          <div class="card-top">
+            <span class="card-name">${r.name}</span>
+            <span class="dot ${isOnline ? 'online' : 'offline'}"></span>
+          </div>
+          <div class="status-row">
+            <span class="status-text ${isOnline ? 'online' : 'offline'}">${r.status.toUpperCase()}</span>
+            ${r.busy ? '<span class="busy-tag">BUSY</span>' : ''}
+          </div>
+          <div class="labels">${labels}</div>
+        </div>
+      `;
+    }).join('');
+    summaryEl.style.display = 'flex';
+    document.getElementById('countOnline').textContent = online - busy < 0 ? online : online - busy;
+    document.getElementById('countBusy').textContent = busy;
+    document.getElementById('countOffline').textContent = offline;
+  }
+
+  async function fetchRunners() {
+    const s = loadSettings();
+    if (!s) return;
+    repoNameEl.textContent = s.repo;
+    try {
+      const res = await fetch(`https://api.github.com/repos/${s.repo}/actions/runners`, {
+        headers: {
+          'Authorization': `Bearer ${s.token}`,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28'
+        }
+      });
+      if (!res.ok) {
+        if (res.status === 401) throw new Error('Unauthorized — check the token.');
+        if (res.status === 404) throw new Error('Repo not found or token lacks access.');
+        if (res.status === 403) throw new Error('Forbidden — check token permissions or rate limit.');
+        throw new Error(`GitHub API error (${res.status})`);
+      }
+      const data = await res.json();
+      renderRunners(data.runners || []);
+      lastSuccess = new Date();
+      lastUpdatedEl.textContent = `updated ${lastSuccess.toLocaleTimeString()}`;
+      lastUpdatedEl.classList.remove('stale');
+    } catch (err) {
+      renderError(err.message || 'Failed to reach GitHub.');
+      lastUpdatedEl.classList.add('stale');
+      lastUpdatedEl.textContent = lastSuccess
+        ? `stale — last ok ${lastSuccess.toLocaleTimeString()}`
+        : 'never updated';
+    }
+  }
+
+  function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    const s = loadSettings();
+    if (!s) return;
+    fetchRunners();
+    pollTimer = setInterval(fetchRunners, (s.interval || 30) * 1000);
+  }
+
+  function tickClock() {
+    clockEl.textContent = new Date().toLocaleTimeString();
+  }
+  setInterval(tickClock, 1000);
+  tickClock();
+
+  // init
+  const existing = loadSettings();
+  if (existing) {
+    startPolling();
+  } else {
+    openSettings();
+  }
+</script>
+</body>
+</html>
