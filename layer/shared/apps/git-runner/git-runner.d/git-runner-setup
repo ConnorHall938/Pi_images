@@ -1,10 +1,12 @@
 #!/bin/sh
 # Installed by the git-runner layer. Run by git-runner-setup.service, as the runner
 # user, with RUNNER_* set by the unit. Downloads the actions runner and registers it
-# with the repo. Does nothing once the runner is registered.
+# with the repo, then deletes the token file: it is only needed once, and workflow jobs
+# run as this same user. Does nothing once the runner is registered.
 set -eu
 
 if [ -f "$RUNNER_DIR/.runner" ]; then
+  rm -f "$RUNNER_TOKEN_FILE"
   echo "git-runner-setup: already registered, nothing to do"
   exit 0
 fi
@@ -42,3 +44,5 @@ esac
   --token "$token" \
   --name "${RUNNER_NAME:-$(hostname)}" \
   ${RUNNER_LABELS:+--labels "$RUNNER_LABELS"}
+
+rm -f "$RUNNER_TOKEN_FILE"

@@ -1,0 +1,128 @@
+# Builds images with ./build.py on the self-hosted Pi runner (the build_host image).
+# Run by hand only: Actions -> Build images -> Run workflow, and pick the image.
+#
+# Each image is published as <config>.img.xz plus a .sha256:
+#   - always: as a workflow artifact (the run's page -> Artifacts; kept up to 90 days)
+#   - if a release tag is given: also as assets on a GitHub release with that tag
+#
+# The images need the git-ignored files under environment/. They are written from
+# these repository secrets (Settings -> Secrets and variables -> Actions):
+#   WIFI_PSK      the Wi-Fi password (written as environment/VM8428755.psk)   (both images)
+#   RUNNER_TOKEN  contents of environment/git-runner.token       (build_host)
+#   KIOSK_ENV     contents of environment/kiosk.env              (build_host)
+#   HA_ENV        contents of environment/ha.env                 (home_assistant_host; may be empty)
+# They end up inside the images, so anyone who can download an image can read them.
+name: Build images
+
+on:
+  workflow_dispatch:
+    inputs:
+      config:
+        description: Which image to build
+        type: choice
+        options: [home_assistant_host, build_host, all]
+        default: home_assistant_host
+      release:
+        description: Release tag to publish the images under (eg v1.0); empty for artifacts only
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.config }}
+    runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      max-parallel: 1  # one runner, and each build wants the whole disk and CPU
+      matrix:
+        config: ${{ fromJSON(inputs.config == 'all' && '["build_host","home_assistant_host"]' || format('["{0}"]', inputs.config)) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Write environment files from secrets
+        env:
+          WIFI_PSK: ${{ secrets.WIFI_PSK }}
+          RUNNER_TOKEN: ${{ secrets.RUNNER_TOKEN }}
+          KIOSK_ENV: ${{ secrets.KIOSK_ENV }}
+          HA_ENV: ${{ secrets.HA_ENV }}
+          CONFIG: ${{ matrix.config }}
+        run: |
+          set -eu
+          umask 077
+          write() {  # write <secret name> <file> [optional]
+            value=$(printenv "$1" || true)
+            if [ -z "$value" ] && [ "${3:-}" != optional ]; then
+              echo "::error::repository secret $1 is not set (needed for environment/$2)"
+              exit 1
+            fi
+            printf '%s\n' "$value" > "environment/$2"
+          }
+          # The secret is just the password; iwd wants it in a profile named after the SSID
+          write WIFI_PSK VM8428755.psk
+          printf '[Security]\nPassphrase=%s\n' "$WIFI_PSK" > environment/VM8428755.psk
+          case "$CONFIG" in
+            build_host)
+              write RUNNER_TOKEN git-runner.token
+              write KIOSK_ENV kiosk.env
+              ;;
+            home_assistant_host)
+              write HA_ENV ha.env optional
+              ;;
+          esac
+
+      - name: Build
+        run: ./build.py build "${{ matrix.config }}"
+
+      - name: Compress
+        working-directory: output
+        run: |
+          set -eu
+          xz -T0 -6 -v "${{ matrix.config }}.img"
+          sha256sum "${{ matrix.config }}.img.xz" > "${{ matrix.config }}.img.xz.sha256"
+          cat "${{ matrix.config }}.img.xz.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.config }}
+          path: |
+            output/${{ matrix.config }}.img.xz
+            output/${{ matrix.config }}.img.xz.sha256
+          compression-level: 0  # already xz
+          if-no-files-found: error
+
+      # The build tree has files owned by mapped uids that the next checkout's clean
+      # could not remove, and the secrets must not stay on disk between runs.
+      - name: Clean up
+        if: always()
+        run: |
+          ./build.py clean "${{ matrix.config }}" || true
+          sudo rm -rf build output environment/*.psk environment/*.token environment/*.env
+
+  release:
+    name: Release ${{ inputs.release }}
+    needs: build
+    if: inputs.release != ''
+    runs-on: [self-hosted, Linux, ARM64]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: images
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release }}
+          target_commitish: ${{ github.sha }}
+          files: images/*
+
+      - name: Clean up
+        if: always()
+        run: rm -rf images

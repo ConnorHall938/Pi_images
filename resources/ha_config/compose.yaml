@@ -1,7 +1,8 @@
 # Home Assistant stack. Installed as ~/app/compose.yaml on the device, so every
 # ./path below is relative to ~/app/ (which is the docker layer's `files:` directory).
 #
-# Optional settings go in ~/app/.env (git-ignored, ships with `files:`):
+# Optional settings go in ~/app/.env, which comes from environment/ha.env (git-ignored;
+# the docker layer's `envfile:`). Copy environment/ha.env.example to start:
 #   ZIGBEE_DEVICE=/dev/serial/by-id/usb-...    a different Zigbee coordinator (default: the Sonoff dongle below)
 #   FRIGATE_RTSP_PASSWORD=...                  camera password, used as {FRIGATE_RTSP_PASSWORD} in
 #                                              frigate/config.yml (Frigate won't start if the config

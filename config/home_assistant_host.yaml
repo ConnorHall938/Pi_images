@@ -24,6 +24,7 @@ docker:
   user: ha
   compose: ${@SRCROOT}/resources/ha_config/compose.yaml
   files: ${@SRCROOT}/resources/ha_config/files   # copied into ~/app/, so ./config:/config in the compose file finds files/config/
+  envfile: ${@SRCROOT}/environment/ha.env        # installed as ~/app/.env: camera passwords etc, never committed
 # Wifi
 iwd:
   profile: ${@SRCROOT}/environment/VM8428755.psk

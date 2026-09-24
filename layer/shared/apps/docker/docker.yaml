@@ -41,6 +41,17 @@
 # X-Env-Var-files-Required: n
 # X-Env-Var-files-Valid: regex:^(/[^ ]+)?$
 # X-Env-Var-files-Set: y
+#
+# X-Env-Var-envfile:
+# X-Env-Var-envfile-Desc: Absolute path to an environment file on the build host
+#  (eg under the repo's environment/ folder), KEY=value lines, for values that
+#  should not be committed such as passwords. Installed as ~/app/.env, readable
+#  only by the user, which docker compose reads for ${KEY} in the compose file.
+#  Installed after files, so it replaces any .env there. Optional; the build fails
+#  if it is set but does not exist. No spaces in the path.
+# X-Env-Var-envfile-Required: n
+# X-Env-Var-envfile-Valid: regex:^(/[^ ]+)?$
+# X-Env-Var-envfile-Set: y
 # METAEND
 ---
 mmdebstrap:
@@ -67,6 +78,10 @@ mmdebstrap:
         cp -RL --preserve=mode,timestamps "$IGconf_docker_files"/. "$1$DOCKER_APPDIR"/
       fi
       install -m 0644 "$IGconf_docker_compose" "$1$DOCKER_APPDIR/compose.yaml"
+      if [ -n "${IGconf_docker_envfile:-}" ]; then
+        [ -f "$IGconf_docker_envfile" ] || { echo "docker: envfile not found: $IGconf_docker_envfile" >&2; exit 1; }
+        install -m 0600 "$IGconf_docker_envfile" "$1$DOCKER_APPDIR/.env"
+      fi
       chroot $1 chown -R "$DOCKER_USER:$DOCKER_USER" "$DOCKER_APPDIR"
       envsubst '$DOCKER_USER $DOCKER_APPDIR' < ${IGconf_docker_assetdir}/docker-app.service.tpl > $1/etc/systemd/system/docker-app.service
       $BDEBSTRAP_HOOKS/enable-units "$1" docker-app

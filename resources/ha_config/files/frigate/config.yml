@@ -2,7 +2,7 @@
 # disabled placeholder: copy it, fill in the real stream, and remove `enabled: false`.
 #
 # To keep a camera password out of this file, put the name FRIGATE_RTSP_PASSWORD in curly
-# braces in the URL and set FRIGATE_RTSP_PASSWORD=... in ~/app/.env. Frigate will not
+# braces in the URL and set FRIGATE_RTSP_PASSWORD=... in environment/ha.env. Frigate will not
 # start if the config names a FRIGATE_ variable that is not set, even in a disabled
 # camera, so the placeholder below does not use one.
 mqtt:
