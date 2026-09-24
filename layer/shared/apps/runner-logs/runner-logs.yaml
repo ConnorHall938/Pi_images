@@ -1,0 +1,37 @@
+# METABEGIN
+# X-Env-Layer-Name: runner-logs
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Category: app
+# X-Env-Layer-Desc: Serves the git-runner layer's job logs on 127.0.0.1 for a kiosk
+#  page: the output of the step running now, read from the runner's _diag/pages/,
+#  and finished jobs' logs, fetched from GitHub with the caller's token. Installs a
+#  small Python service, runner-logs, that runs as the runner user.
+# X-Env-Layer-Requires: git-runner
+#
+# X-Env-VarPrefix: runnerlogs
+#
+# X-Env-Var-assetdir: ${DOTD}
+# X-Env-Var-assetdir-Required: n
+# X-Env-Var-assetdir-Valid: dir
+# X-Env-Var-assetdir-Set: y
+#
+# X-Env-Var-port: 8765
+# X-Env-Var-port-Desc: Port on 127.0.0.1 to serve on. The kiosk page has to use the
+#  same one.
+# X-Env-Var-port-Required: n
+# X-Env-Var-port-Valid: regex:^[0-9]+$
+# X-Env-Var-port-Set: y
+# METAEND
+---
+mmdebstrap:
+  packages:
+    - python3
+  customize-hooks:
+    - |
+      set -eu
+      export RUNNER_USER="$IGconf_runner_user"
+      export RUNNER_DIR="/home/$IGconf_runner_user/actions-runner"
+      export RUNNER_LOGS_PORT="$IGconf_runnerlogs_port"
+      install -D -m 0755 ${IGconf_runnerlogs_assetdir}/runner-logs "$1/usr/local/bin/runner-logs"
+      envsubst '$RUNNER_USER $RUNNER_DIR $RUNNER_LOGS_PORT' < ${IGconf_runnerlogs_assetdir}/runner-logs.service.tpl > $1/etc/systemd/system/runner-logs.service
+      $BDEBSTRAP_HOOKS/enable-units "$1" runner-logs

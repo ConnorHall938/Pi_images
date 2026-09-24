@@ -6,9 +6,11 @@
 <title>Runner Status</title>
 <style>
   :root {
+    color-scheme: dark;
     --bg: #0a0d12;
     --panel: #12161e;
     --panel-border: #1f2530;
+    --inset: #0d1117;
     --text: #d6dde6;
     --text-dim: #6b7685;
     --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
@@ -85,14 +87,24 @@
     color: var(--text-dim);
   }
 
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .section-title {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+    margin: 28px 0 12px;
+  }
+
   /* runner grid */
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 16px;
-    overflow-y: auto;
-    padding-right: 4px;
-    flex: 1;
   }
   .card {
     background: var(--panel);
@@ -101,6 +113,8 @@
     padding: 20px 22px;
     position: relative;
   }
+  .clickable { cursor: pointer; }
+  .clickable:active { border-color: var(--accent); }
   .card-top {
     display: flex;
     align-items: center;
@@ -119,6 +133,7 @@
     flex-shrink: 0;
   }
   .dot.online { background: var(--online); box-shadow: 0 0 8px var(--online); }
+  .dot.busy { background: var(--busy); box-shadow: 0 0 8px var(--busy); }
   .dot.offline { background: transparent; border: 2px solid var(--offline); }
   .status-row {
     display: flex;
@@ -127,16 +142,51 @@
     font-family: var(--mono);
     font-size: 13px;
   }
-  .status-text.online { color: var(--online); }
-  .status-text.offline { color: var(--offline); }
-  .busy-tag {
+  .online { color: var(--online); }
+  .busy { color: var(--busy); }
+  .offline { color: var(--offline); }
+  .dim { color: var(--text-dim); }
+
+  .job {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--panel-border);
+  }
+  .job-title { font-size: 15px; font-weight: 600; }
+  .job-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+  .step-line {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .step-count { font-family: var(--mono); color: var(--busy); }
+  .step-name { overflow: hidden; text-overflow: ellipsis; }
+  .bar {
+    height: 6px;
+    background: var(--inset);
+    border-radius: 3px;
+    margin-top: 8px;
+    overflow: hidden;
+  }
+  .bar > div {
+    height: 100%;
+    background: var(--busy);
+    border-radius: 3px;
+    transition: width 0.4s;
+  }
+  .job-meta {
+    display: flex;
+    justify-content: space-between;
     font-family: var(--mono);
-    font-size: 11px;
-    color: var(--busy);
-    border: 1px solid var(--busy);
-    border-radius: 4px;
-    padding: 1px 6px;
-    margin-left: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 6px;
   }
   .labels {
     margin-top: 14px;
@@ -148,19 +198,194 @@
     font-family: var(--mono);
     font-size: 11px;
     color: var(--text-dim);
-    background: #0d1117;
+    background: var(--inset);
     border: 1px solid var(--panel-border);
     border-radius: 4px;
     padding: 3px 8px;
   }
+
+  /* recent runs */
+  .runs {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .run {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    min-height: 60px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .run:last-child { border-bottom: none; }
+  .run-main { flex: 1; min-width: 0; }
+  .run-title {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .run-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+  .run-side {
+    text-align: right;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .run .bar { width: 120px; margin: 6px 0 0 auto; }
+
+  /* status icons */
+  .icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .icon.success { color: var(--online); }
+  .icon.failure { color: var(--offline); }
+  .icon.skipped, .icon.cancelled, .icon.queued { color: var(--text-dim); }
+  .icon.running::before {
+    content: '';
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--busy);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   .empty, .error {
     margin: auto;
     text-align: center;
     color: var(--text-dim);
     font-family: var(--mono);
+    padding: 24px;
   }
   .error { color: var(--offline); }
+  .notice {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--busy);
+    padding: 14px 18px;
+  }
+
+  /* job / run detail */
+  .detail {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: none;
+    flex-direction: column;
+    padding: 24px 32px;
+    z-index: 5;
+  }
+  .detail.open { display: flex; }
+  .detail-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 16px;
+  }
+  .detail-titles { flex: 1; min-width: 0; }
+  .detail-title { font-size: 20px; font-weight: 600; }
+  .detail-sub {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .detail-progress { margin-top: 14px; }
+  .close {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 1px solid var(--panel-border);
+    background: var(--panel);
+    color: var(--text);
+    font-size: 20px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .steps {
+    margin-top: 14px;
+    max-height: 34%;
+    overflow-y: auto;
+    flex-shrink: 0;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+  }
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 16px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .step:last-child { border-bottom: none; }
+  .step-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .step.current .step-label { color: var(--busy); font-weight: 600; }
+  .step-time { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
+  .job-row { padding: 14px 16px; min-height: 56px; }
+  .log-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    margin: 16px 0 8px;
+  }
+  .follow {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--panel-border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .follow.on { color: var(--accent); border-color: var(--accent); }
+  .log {
+    flex: 1;
+    margin: 0;
+    overflow: auto;
+    background: var(--inset);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text);
+  }
+  .log .l-group { color: var(--accent); font-weight: 600; }
+  .log .l-command, .log .l-debug, .log .l-note { color: var(--text-dim); }
+  .log .l-error { color: var(--offline); }
+  .log .l-warning { color: var(--busy); }
+  .log .l-section { color: var(--text); font-weight: 600; }
+  .log-message {
+    font-family: var(--sans);
+    color: var(--text-dim);
+    white-space: normal;
+  }
 
   /* settings */
   .gear {
@@ -214,7 +439,7 @@
   }
   .field input {
     width: 100%;
-    background: #0d1117;
+    background: var(--inset);
     border: 1px solid var(--panel-border);
     border-radius: 6px;
     padding: 9px 10px;
@@ -268,11 +493,11 @@
   <div class="summary" id="summary" style="display:none">
     <div class="summary-item">
       <span class="summary-count" style="color:var(--online)" id="countOnline">0</span>
-      <span class="summary-label">online</span>
+      <span class="summary-label">idle</span>
     </div>
     <div class="summary-item">
       <span class="summary-count" style="color:var(--busy)" id="countBusy">0</span>
-      <span class="summary-label">busy</span>
+      <span class="summary-label">running</span>
     </div>
     <div class="summary-item">
       <span class="summary-count" style="color:var(--offline)" id="countOffline">0</span>
@@ -280,8 +505,31 @@
     </div>
   </div>
 
-  <div class="grid" id="grid">
-    <div class="empty">Open settings to connect a repository.</div>
+  <div class="main">
+    <div class="grid" id="grid">
+      <div class="empty">Open settings to connect a repository.</div>
+    </div>
+    <div id="runsSection" style="display:none">
+      <div class="section-title">RECENT RUNS</div>
+      <div class="runs" id="runs"></div>
+    </div>
+  </div>
+
+  <div class="detail" id="detail">
+    <div class="detail-head">
+      <div class="detail-titles">
+        <div class="detail-title" id="detailTitle"></div>
+        <div class="detail-sub" id="detailSub"></div>
+      </div>
+      <button class="close" id="detailClose">✕</button>
+    </div>
+    <div class="detail-progress" id="detailProgress"></div>
+    <div class="steps" id="detailSteps"></div>
+    <div class="log-head" id="logHead">
+      <span id="logSource"></span>
+      <button class="follow on" id="followBtn">follow</button>
+    </div>
+    <pre class="log" id="log"></pre>
   </div>
 
   <div class="gear" id="gearBtn">⚙</div>
@@ -297,15 +545,16 @@
         <label>Personal access token</label>
         <input type="password" id="inputToken" placeholder="github_pat_...">
         <div class="field-hint">
-          Needs read access to Actions/runners for this repo — a fine-grained
-          token with "Administration: Read-only" on this repo, or a classic
-          token with the "repo" scope. Stored only in this browser's local
-          storage, never sent anywhere but api.github.com.
+          A fine-grained token on this repo with "Administration: Read-only"
+          (runners) and "Actions: Read-only" (runs, steps and logs), or a
+          classic token with the "repo" scope. Stored only in this browser's
+          local storage; sent to api.github.com, and to the log service on
+          this device to fetch finished jobs' logs.
         </div>
       </div>
       <div class="field">
         <label>Refresh interval (seconds)</label>
-        <input type="number" id="inputInterval" value="30" min="10">
+        <input type="number" id="inputInterval" value="15" min="10">
       </div>
       <div class="settings-actions">
         <button class="btn" id="cancelBtn">Cancel</button>
@@ -322,25 +571,41 @@
   const DEFAULT_CONFIG = {
     repo: '${GITHUB_REPO}',     // e.g. 'myorg/c43-firmware'
     token: '${GITHUB_TOKEN}',   // e.g. 'github_pat_xxxxx'
-    interval: 30                // seconds between refreshes
+    interval: 15                // seconds between refreshes
   };
+  // The runner-logs service on this device (layer/shared/apps/runner-logs)
+  const LOG_SERVER = 'http://127.0.0.1:8765';
+  const RECENT_RUNS = 10;
+  const LIVE_POLL_MS = 3000;
+  const MAX_LOG_LINES = 3000;
   // -----------------------------------------------------------------------
 
-  const gearBtn = document.getElementById('gearBtn');
-  const overlay = document.getElementById('overlay');
-  const cancelBtn = document.getElementById('cancelBtn');
-  const saveBtn = document.getElementById('saveBtn');
-  const inputRepo = document.getElementById('inputRepo');
-  const inputToken = document.getElementById('inputToken');
-  const inputInterval = document.getElementById('inputInterval');
-  const repoNameEl = document.getElementById('repoName');
-  const gridEl = document.getElementById('grid');
-  const summaryEl = document.getElementById('summary');
-  const lastUpdatedEl = document.getElementById('lastUpdated');
-  const clockEl = document.getElementById('clock');
+  const $ = id => document.getElementById(id);
+  const gearBtn = $('gearBtn');
+  const overlay = $('overlay');
+  const inputRepo = $('inputRepo');
+  const inputToken = $('inputToken');
+  const inputInterval = $('inputInterval');
+  const repoNameEl = $('repoName');
+  const gridEl = $('grid');
+  const runsEl = $('runs');
+  const runsSection = $('runsSection');
+  const summaryEl = $('summary');
+  const lastUpdatedEl = $('lastUpdated');
+  const clockEl = $('clock');
+  const detailEl = $('detail');
+  const logEl = $('log');
+  const followBtn = $('followBtn');
 
   let pollTimer = null;
   let lastSuccess = null;
+  // From the last refresh: runners, recent runs, and the jobs of runs still going
+  let runners = [];
+  let runs = [];
+  let runsError = null;
+  let activeJobs = new Map();  // run id -> jobs
+
+  // ---- settings ----------------------------------------------------------
 
   function loadSettings() {
     try {
@@ -359,86 +624,128 @@
     if (s) {
       inputRepo.value = s.repo || '';
       inputToken.value = s.token || '';
-      inputInterval.value = s.interval || 30;
+      inputInterval.value = s.interval || 15;
     }
     overlay.classList.add('open');
   }
   function closeSettings() { overlay.classList.remove('open'); }
 
   gearBtn.addEventListener('click', openSettings);
-  cancelBtn.addEventListener('click', closeSettings);
-  saveBtn.addEventListener('click', () => {
+  $('cancelBtn').addEventListener('click', closeSettings);
+  $('saveBtn').addEventListener('click', () => {
     const repo = inputRepo.value.trim();
     const token = inputToken.value.trim();
-    const interval = Math.max(10, parseInt(inputInterval.value, 10) || 30);
+    const interval = Math.max(10, parseInt(inputInterval.value, 10) || 15);
     if (!repo || !token) return;
     saveSettings({ repo, token, interval });
     closeSettings();
     startPolling();
   });
 
-  function renderError(message) {
-    gridEl.innerHTML = `<div class="error">${message}</div>`;
-    summaryEl.style.display = 'none';
+  // ---- helpers -----------------------------------------------------------
+
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+  function duration(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, sec = s % 60;
+    if (h) return `${h}h ${String(m).padStart(2, '0')}m`;
+    if (m) return `${m}m ${String(sec).padStart(2, '0')}s`;
+    return `${sec}s`;
+  }
+  function ago(iso) {
+    const ms = Date.now() - Date.parse(iso);
+    if (ms < 60e3) return 'just now';
+    if (ms < 3600e3) return `${Math.floor(ms / 60e3)}m ago`;
+    if (ms < 86400e3) return `${Math.floor(ms / 3600e3)}h ago`;
+    return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  }
+  // A span that the clock keeps counting up from `iso`
+  const elapsed = iso => `<span data-since="${esc(iso)}">${duration(Date.now() - Date.parse(iso))}</span>`;
+
+  // status + conclusion (runs, jobs and steps all have them) -> icon class and word
+  function outcome(item) {
+    if (item.status === 'in_progress') return ['running', 'running'];
+    if (item.status !== 'completed') return ['queued', 'queued'];
+    const c = item.conclusion || 'completed';
+    if (c === 'success') return ['success', 'success'];
+    if (c === 'skipped') return ['skipped', 'skipped'];
+    if (c === 'cancelled') return ['cancelled', 'cancelled'];
+    return ['failure', c.replace(/_/g, ' ')];
+  }
+  const ICON_TEXT = { success: '✓', failure: '✗', skipped: '–', cancelled: '⊘', queued: '○', running: '' };
+  const icon = item => {
+    const [cls] = outcome(item);
+    return `<span class="icon ${cls}">${ICON_TEXT[cls]}</span>`;
+  };
+
+  // Progress through a job's steps: done / total, and the step running now
+  function progress(job) {
+    const steps = job.steps || [];
+    const done = steps.filter(s => s.status === 'completed').length;
+    const current = steps.find(s => s.status === 'in_progress');
+    const pct = steps.length ? Math.round(done / steps.length * 100) : 0;
+    return { done, total: steps.length, current, pct, number: current ? current.number : done };
   }
 
-  function renderRunners(runners) {
-    if (!runners.length) {
-      gridEl.innerHTML = '<div class="empty">No runners registered on this repository.</div>';
-      summaryEl.style.display = 'none';
-      return;
+  // ---- GitHub ------------------------------------------------------------
+
+  async function gh(path) {
+    const s = loadSettings();
+    const res = await fetch(`https://api.github.com/repos/${s.repo}${path}`, {
+      headers: {
+        'Authorization': `Bearer ${s.token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28'
+      }
+    });
+    if (!res.ok) {
+      const err = new Error(
+        res.status === 401 ? 'Unauthorized — check the token.' :
+        res.status === 404 ? 'Repo not found or token lacks access.' :
+        res.status === 403 ? 'Forbidden — check token permissions or rate limit.' :
+        `GitHub API error (${res.status})`);
+      err.status = res.status;
+      throw err;
     }
-    let online = 0, busy = 0, offline = 0;
-    gridEl.innerHTML = runners.map(r => {
-      const isOnline = r.status === 'online';
-      isOnline ? online++ : offline++;
-      if (r.busy) busy++;
-      const labels = (r.labels || []).map(l => `<span class="label-chip">${l.name}</span>`).join('');
-      return `
-        <div class="card">
-          <div class="card-top">
-            <span class="card-name">${r.name}</span>
-            <span class="dot ${isOnline ? 'online' : 'offline'}"></span>
-          </div>
-          <div class="status-row">
-            <span class="status-text ${isOnline ? 'online' : 'offline'}">${r.status.toUpperCase()}</span>
-            ${r.busy ? '<span class="busy-tag">BUSY</span>' : ''}
-          </div>
-          <div class="labels">${labels}</div>
-        </div>
-      `;
-    }).join('');
-    summaryEl.style.display = 'flex';
-    document.getElementById('countOnline').textContent = online - busy < 0 ? online : online - busy;
-    document.getElementById('countBusy').textContent = busy;
-    document.getElementById('countOffline').textContent = offline;
+    return res.json();
   }
 
-  async function fetchRunners() {
+  async function refresh() {
     const s = loadSettings();
     if (!s) return;
     repoNameEl.textContent = s.repo;
     try {
-      const res = await fetch(`https://api.github.com/repos/${s.repo}/actions/runners`, {
-        headers: {
-          'Authorization': `Bearer ${s.token}`,
-          'Accept': 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28'
-        }
-      });
-      if (!res.ok) {
-        if (res.status === 401) throw new Error('Unauthorized — check the token.');
-        if (res.status === 404) throw new Error('Repo not found or token lacks access.');
-        if (res.status === 403) throw new Error('Forbidden — check token permissions or rate limit.');
-        throw new Error(`GitHub API error (${res.status})`);
+      const [runnersRes, runsRes] = await Promise.allSettled([
+        gh('/actions/runners'),
+        gh(`/actions/runs?per_page=${RECENT_RUNS}`)
+      ]);
+      if (runnersRes.status === 'rejected') throw runnersRes.reason;
+      runners = runnersRes.value.runners || [];
+      if (runsRes.status === 'fulfilled') {
+        runs = runsRes.value.workflow_runs || [];
+        runsError = null;
+        const active = runs.filter(r => r.status !== 'completed');
+        activeJobs = new Map(await Promise.all(active.map(r =>
+          gh(`/actions/runs/${r.id}/jobs?per_page=100`)
+            .then(d => [r.id, d.jobs || []])
+            .catch(() => [r.id, activeJobs.get(r.id) || []]))));
+      } else {
+        runs = [];
+        activeJobs = new Map();
+        runsError = runsRes.reason.status === 403 || runsRes.reason.status === 404
+          ? 'Runs, steps and logs need "Actions: Read-only" on the token.'
+          : runsRes.reason.message;
       }
-      const data = await res.json();
-      renderRunners(data.runners || []);
+      render();
       lastSuccess = new Date();
       lastUpdatedEl.textContent = `updated ${lastSuccess.toLocaleTimeString()}`;
       lastUpdatedEl.classList.remove('stale');
     } catch (err) {
-      renderError(err.message || 'Failed to reach GitHub.');
+      gridEl.innerHTML = `<div class="error">${esc(err.message || 'Failed to reach GitHub.')}</div>`;
+      summaryEl.style.display = 'none';
+      runsSection.style.display = 'none';
       lastUpdatedEl.classList.add('stale');
       lastUpdatedEl.textContent = lastSuccess
         ? `stale — last ok ${lastSuccess.toLocaleTimeString()}`
@@ -446,16 +753,363 @@
     }
   }
 
+  // ---- dashboard ---------------------------------------------------------
+
+  function render() {
+    renderRunners();
+    renderRuns();
+  }
+
+  function renderRunners() {
+    if (!runners.length) {
+      gridEl.innerHTML = '<div class="empty">No runners registered on this repository.</div>';
+      summaryEl.style.display = 'none';
+      return;
+    }
+    const jobs = [...activeJobs.values()].flat();
+    let idle = 0, running = 0, offline = 0;
+    gridEl.innerHTML = runners.map(r => {
+      const job = jobs.find(j => j.status === 'in_progress' && j.runner_name === r.name);
+      const run = job && runs.find(x => x.id === job.run_id);
+      const state = r.status !== 'online' ? 'offline' : r.busy ? 'busy' : 'online';
+      state === 'offline' ? offline++ : state === 'busy' ? running++ : idle++;
+      const word = { online: 'IDLE', busy: 'RUNNING', offline: 'OFFLINE' }[state];
+      const labels = (r.labels || []).map(l => `<span class="label-chip">${esc(l.name)}</span>`).join('');
+      let jobHtml = '';
+      if (job) {
+        const p = progress(job);
+        jobHtml = `
+          <div class="job">
+            <div class="job-title">${esc(job.name)}</div>
+            <div class="job-sub">${run ? `${esc(run.name)} #${run.run_number} · ${esc(run.head_branch)}` : ''}</div>
+            <div class="step-line">
+              <span class="step-count">Step ${p.number}/${p.total || '?'}</span>
+              <span class="step-name">${esc(p.current ? p.current.name : 'starting')}</span>
+            </div>
+            <div class="bar"><div style="width:${p.pct}%"></div></div>
+            <div class="job-meta"><span>${p.pct}%</span>${elapsed(job.started_at)}</div>
+          </div>`;
+      } else if (state === 'busy') {
+        jobHtml = `<div class="job"><div class="job-sub">${esc(runsError || 'Job details not available yet.')}</div></div>`;
+      }
+      return `
+        <div class="card ${job ? 'clickable' : ''}" ${job ? `data-job="${job.id}"` : ''}>
+          <div class="card-top">
+            <span class="card-name">${esc(r.name)}</span>
+            <span class="dot ${state}"></span>
+          </div>
+          <div class="status-row"><span class="${state}">${word}</span></div>
+          ${jobHtml}
+          <div class="labels">${labels}</div>
+        </div>`;
+    }).join('');
+    summaryEl.style.display = 'flex';
+    $('countOnline').textContent = idle;
+    $('countBusy').textContent = running;
+    $('countOffline').textContent = offline;
+  }
+
+  function renderRuns() {
+    runsSection.style.display = 'block';
+    if (runsError) {
+      runsEl.innerHTML = `<div class="notice">${esc(runsError)}</div>`;
+      return;
+    }
+    if (!runs.length) {
+      runsEl.innerHTML = '<div class="empty">No workflow runs yet.</div>';
+      return;
+    }
+    runsEl.innerHTML = runs.map(run => {
+      const [, word] = outcome(run);
+      let side;
+      if (run.status === 'completed') {
+        const took = Date.parse(run.updated_at) - Date.parse(run.run_started_at || run.created_at);
+        side = `<div>${ago(run.created_at)}</div><div>${word} · ${duration(took)}</div>`;
+      } else {
+        const jobs = activeJobs.get(run.id) || [];
+        const steps = jobs.flatMap(j => j.steps || []);
+        const pct = steps.length ? Math.round(steps.filter(s => s.status === 'completed').length / steps.length * 100) : 0;
+        side = run.status === 'in_progress'
+          ? `<div>${pct}% · ${elapsed(run.run_started_at || run.created_at)}</div><div class="bar"><div style="width:${pct}%"></div></div>`
+          : `<div>${word}</div><div>${ago(run.created_at)}</div>`;
+      }
+      const title = run.display_title && run.display_title !== run.name
+        ? `${esc(run.display_title)}` : esc(run.name);
+      return `
+        <div class="run clickable" data-run="${run.id}">
+          ${icon(run)}
+          <div class="run-main">
+            <div class="run-title">${title}</div>
+            <div class="run-sub">${esc(run.name)} #${run.run_number} · ${esc(run.event)} · ${esc(run.head_branch)}</div>
+          </div>
+          <div class="run-side">${side}</div>
+        </div>`;
+    }).join('');
+  }
+
+  gridEl.addEventListener('click', e => {
+    const card = e.target.closest('[data-job]');
+    if (card) openJob(Number(card.dataset.job));
+  });
+  runsEl.addEventListener('click', e => {
+    const row = e.target.closest('[data-run]');
+    if (row) openRun(Number(row.dataset.run));
+  });
+
+  // ---- detail: a run's jobs, or a job's steps and log --------------------
+
+  // What the detail view shows. `seq` guards against a slow reply for a view
+  // that has since been closed or replaced.
+  let detail = null;
+  let detailTimer = null;
+  let seq = 0;
+  let follow = true;
+
+  function showDetail() {
+    detailEl.classList.add('open');
+  }
+  function closeDetail() {
+    detail = null;
+    seq++;
+    clearInterval(detailTimer);
+    detailTimer = null;
+    detailEl.classList.remove('open');
+  }
+  $('detailClose').addEventListener('click', closeDetail);
+  followBtn.addEventListener('click', () => {
+    follow = !follow;
+    followBtn.classList.toggle('on', follow);
+    if (follow) logEl.scrollTop = logEl.scrollHeight;
+  });
+  logEl.addEventListener('scroll', () => {
+    const atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 30;
+    if (follow !== atBottom) {
+      follow = atBottom;
+      followBtn.classList.toggle('on', follow);
+    }
+  });
+
+  function setDetailHead(title, sub, progressHtml) {
+    $('detailTitle').textContent = title;
+    $('detailSub').innerHTML = sub;
+    $('detailProgress').innerHTML = progressHtml || '';
+  }
+  function showLog(visible) {
+    $('logHead').style.display = visible ? 'flex' : 'none';
+    logEl.style.display = visible ? 'block' : 'none';
+  }
+  function logMessage(text) {
+    logEl.innerHTML = `<div class="log-message">${esc(text)}</div>`;
+  }
+
+  async function openRun(runId) {
+    closeDetail();
+    const my = seq;
+    detail = { runId };
+    const run = runs.find(r => r.id === runId);
+    setDetailHead(run ? run.display_title : 'Run', 'loading jobs…');
+    $('detailSteps').innerHTML = '';
+    showLog(false);
+    showDetail();
+    try {
+      const jobs = (await gh(`/actions/runs/${runId}/jobs?per_page=100`)).jobs || [];
+      if (my !== seq) return;
+      if (jobs.length === 1) return openJob(jobs[0].id);
+      setDetailHead(run ? run.display_title : 'Run',
+        run ? `${esc(run.name)} #${run.run_number} · ${jobs.length} jobs` : `${jobs.length} jobs`);
+      $('detailSteps').style.maxHeight = 'none';
+      $('detailSteps').innerHTML = jobs.map(job => {
+        const p = progress(job);
+        const [, word] = outcome(job);
+        const time = job.started_at
+          ? (job.completed_at ? duration(Date.parse(job.completed_at) - Date.parse(job.started_at)) : elapsed(job.started_at))
+          : '';
+        return `
+          <div class="step job-row clickable" data-job="${job.id}">
+            ${icon(job)}
+            <span class="step-label">${esc(job.name)}</span>
+            <span class="step-time">${[job.status === 'in_progress' ? `${p.done}/${p.total}` : word, time].filter(Boolean).join(' · ')}</span>
+          </div>`;
+      }).join('') || '<div class="empty">This run has no jobs.</div>';
+    } catch (err) {
+      if (my === seq) setDetailHead(run ? run.display_title : 'Run', esc(err.message));
+    }
+  }
+  $('detailSteps').addEventListener('click', e => {
+    const row = e.target.closest('[data-job]');
+    if (row) openJob(Number(row.dataset.job));
+  });
+
+  async function openJob(jobId) {
+    closeDetail();
+    detail = { jobId, job: null, fullLog: false, tick: 0 };
+    follow = true;
+    followBtn.classList.add('on');
+    setDetailHead('Job', 'loading…');
+    $('detailSteps').innerHTML = '';
+    $('detailSteps').style.maxHeight = '';
+    showLog(true);
+    $('logSource').textContent = '';
+    logMessage('Loading…');
+    showDetail();
+    await updateJob();
+    detailTimer = setInterval(() => {
+      if (!detail || !detail.job) return;
+      detail.tick++;
+      // While running: live output every tick, the steps every other one
+      if (detail.job.status !== 'completed' && detail.tick % 2 === 0) updateJob();
+      else updateLog();
+    }, LIVE_POLL_MS);
+  }
+
+  async function updateJob() {
+    const my = seq;
+    try {
+      const job = await gh(`/actions/jobs/${detail.jobId}`);
+      if (my !== seq) return;
+      detail.job = job;
+      renderJob(job);
+      await updateLog();
+    } catch (err) {
+      if (my === seq && !detail.job) setDetailHead('Job', esc(err.message));
+    }
+  }
+
+  function renderJob(job) {
+    const p = progress(job);
+    const [, word] = outcome(job);
+    const run = runs.find(r => r.id === job.run_id);
+    const time = job.started_at
+      ? (job.completed_at ? duration(Date.parse(job.completed_at) - Date.parse(job.started_at)) : elapsed(job.started_at))
+      : '';
+    const sub = [
+      run ? `${esc(run.name)} #${run.run_number}` : '',
+      job.runner_name ? `on ${esc(job.runner_name)}` : '',
+      `${word}${time ? ` · ${time}` : ''}`
+    ].filter(Boolean).join(' · ');
+    const bar = job.status === 'in_progress'
+      ? `<div class="step-line"><span class="step-count">Step ${p.number}/${p.total || '?'}</span>
+           <span class="step-name">${esc(p.current ? p.current.name : 'starting')}</span>
+           <span class="dim" style="margin-left:auto">${p.pct}%</span></div>
+         <div class="bar"><div style="width:${p.pct}%"></div></div>`
+      : '';
+    setDetailHead(job.name, sub, bar);
+    $('detailSteps').innerHTML = (job.steps || []).map(s => {
+      const t = s.started_at
+        ? (s.completed_at ? duration(Date.parse(s.completed_at) - Date.parse(s.started_at)) : elapsed(s.started_at))
+        : '';
+      return `
+        <div class="step ${s.status === 'in_progress' ? 'current' : ''}">
+          ${icon(s)}
+          <span class="step-label">${s.number}. ${esc(s.name)}</span>
+          <span class="step-time">${t}</span>
+        </div>`;
+    }).join('') || '<div class="empty">No steps yet.</div>';
+    const current = $('detailSteps').querySelector('.current');
+    if (current) current.scrollIntoView({ block: 'nearest' });
+  }
+
+  async function updateLog() {
+    const my = seq;
+    const job = detail && detail.job;
+    if (!job || detail.fullLog) return;
+    const s = loadSettings();
+    try {
+      if (job.status === 'completed') {
+        $('logSource').textContent = 'full log';
+        const res = await fetch(
+          `${LOG_SERVER}/job-log?repo=${encodeURIComponent(s.repo)}&job=${job.id}`,
+          { headers: { 'Authorization': `Bearer ${s.token}` } });
+        const text = await res.text();
+        if (my !== seq) return;
+        if (res.ok) {
+          detail.fullLog = true;
+          renderLog(text);
+        } else if (res.status === 404) {
+          logMessage('GitHub has no log for this job yet (it can take a few seconds after the job ends). Retrying…');
+        } else {
+          logMessage(`Could not get the log from GitHub (${res.status}). ${res.status === 403 ? 'The token needs "Actions: Read-only".' : text.slice(0, 200)}`);
+        }
+      } else if (job.status === 'in_progress') {
+        // Files the runner wrote since the job started (with a little slack for clocks)
+        const since = Date.parse(job.started_at) / 1000 - 5;
+        const res = await fetch(`${LOG_SERVER}/live?since=${since}`);
+        const live = await res.json();
+        if (my !== seq) return;
+        if (live.runner !== job.runner_name) {
+          // Another device's job: try GitHub's log, which may only exist once the job ends
+          const res = await fetch(
+            `${LOG_SERVER}/job-log?repo=${encodeURIComponent(s.repo)}&job=${job.id}`,
+            { headers: { 'Authorization': `Bearer ${s.token}` } });
+          const text = await res.text();
+          if (my !== seq) return;
+          if (res.ok && text.trim()) {
+            $('logSource').textContent = 'from GitHub · so far';
+            renderLog(text);
+          } else {
+            $('logSource').textContent = '';
+            logMessage(`This job runs on ${job.runner_name}, not this device (${live.runner || 'no runner here'}), and GitHub has no log for it yet. It appears here when the job finishes.`);
+          }
+        } else if (!live.text) {
+          $('logSource').textContent = 'live · current step';
+          logMessage('Waiting for output from the current step…');
+        } else {
+          $('logSource').textContent = 'live · current step';
+          renderLog(live.text, live.truncated);
+        }
+      } else {
+        $('logSource').textContent = '';
+        logMessage('Queued — waiting for a runner to pick this job up.');
+      }
+    } catch {
+      if (my === seq) logMessage(`The log service on this device is not reachable (${LOG_SERVER}). Is runner-logs.service running?`);
+    }
+  }
+
+  // GitHub's log format: a timestamp on every line, ANSI colours, and ##[...] markers
+  const TIMESTAMP = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z ?/;
+  const ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
+  const MARKER = /^##\[(group|error|warning|debug|notice|command|section)\]/;
+
+  function renderLog(text, truncated) {
+    const lines = text.split(/\r?\n/);
+    if (lines[lines.length - 1] === '') lines.pop();
+    const start = Math.max(0, lines.length - MAX_LOG_LINES);
+    const out = [];
+    if (start > 0 || truncated) out.push('<span class="l-note">… earlier output not shown</span>');
+    for (let i = start; i < lines.length; i++) {
+      let line = lines[i].replace(TIMESTAMP, '').replace(ANSI, '');
+      if (line.startsWith('##[endgroup]')) continue;
+      let cls = '';
+      const m = MARKER.exec(line);
+      if (m) {
+        cls = `l-${m[1]}`;
+        line = line.slice(m[0].length);
+      } else if (line.startsWith('[command]')) {
+        cls = 'l-command';
+        line = line.slice('[command]'.length);
+      }
+      out.push(cls ? `<span class="${cls}">${esc(line)}</span>` : esc(line));
+    }
+    logEl.innerHTML = out.join('\n');
+    if (follow) logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // ---- start up ----------------------------------------------------------
+
   function startPolling() {
     if (pollTimer) clearInterval(pollTimer);
     const s = loadSettings();
     if (!s) return;
-    fetchRunners();
-    pollTimer = setInterval(fetchRunners, (s.interval || 30) * 1000);
+    refresh();
+    pollTimer = setInterval(refresh, (s.interval || 15) * 1000);
   }
 
   function tickClock() {
     clockEl.textContent = new Date().toLocaleTimeString();
+    for (const el of document.querySelectorAll('[data-since]')) {
+      el.textContent = duration(Date.now() - Date.parse(el.dataset.since));
+    }
   }
   setInterval(tickClock, 1000);
   tickClock();

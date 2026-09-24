@@ -13,6 +13,7 @@
 #   HA_ENV        contents of environment/ha.env                 (home_assistant_host; may be empty)
 # They end up inside the images, so anyone who can download an image can read them.
 name: Build images
+run-name: Build ${{ inputs.config }}${{ inputs.release && format(' → {0}', inputs.release) || '' }}
 
 on:
   workflow_dispatch:

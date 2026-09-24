@@ -16,6 +16,7 @@ layer:
   app: kiosk
   growfs: growfs
   runner: git-runner
+  runnerlogs: runner-logs          # step output and logs for the kiosk page
   builder: rpi_builder
 
 kiosk:
