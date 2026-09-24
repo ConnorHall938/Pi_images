@@ -1,0 +1,20 @@
+#!/bin/sh
+# Installed by the rpi_builder layer. Run by rpi-builder-setup.service, as root,
+# with BUILDER_* set by the unit. Clones rpi-image-gen into a temporary directory,
+# installs its build dependencies, then removes the clone. Does nothing once done.
+set -eu
+
+stamp=/var/lib/rpi-builder/deps-installed
+if [ -f "$stamp" ]; then
+  echo "rpi-builder-setup: already set up, nothing to do"
+  exit 0
+fi
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+git clone --depth 1 ${BUILDER_BRANCH:+--branch "$BUILDER_BRANCH"} "$BUILDER_URL" "$tmp/rpi-image-gen"
+
+apt-get update
+"$tmp/rpi-image-gen/install_deps.sh"
+mkdir -p "$(dirname "$stamp")"
+touch "$stamp"

@@ -1,0 +1,44 @@
+# METABEGIN
+# X-Env-Layer-Name: rpi_builder
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Category: app
+# X-Env-Layer-Desc: Makes the device able to build images with rpi-image-gen.
+#  Installs a systemd service, rpi-builder-setup, that on first boot clones
+#  rpi-image-gen into a temporary directory, runs its install_deps.sh to install
+#  the build dependencies, and removes the clone. Nothing is cloned or installed
+#  at image build time. If the git-runner layer is also used, the runner starts
+#  after this has finished.
+# X-Env-Layer-Requires: systemd-net-min,systemd-timesyncd
+#
+# X-Env-VarPrefix: builder
+#
+# X-Env-Var-assetdir: ${DOTD}
+# X-Env-Var-assetdir-Required: n
+# X-Env-Var-assetdir-Valid: dir
+# X-Env-Var-assetdir-Set: y
+#
+# X-Env-Var-url: https://github.com/raspberrypi/rpi-image-gen.git
+# X-Env-Var-url-Desc: Git URL to clone rpi-image-gen from.
+# X-Env-Var-url-Required: n
+# X-Env-Var-url-Valid: regex:^[^ ]+$
+# X-Env-Var-url-Set: y
+#
+# X-Env-Var-branch:
+# X-Env-Var-branch-Desc: Branch or tag to clone. Empty means the default branch.
+# X-Env-Var-branch-Required: n
+# X-Env-Var-branch-Valid: regex:^[^ ]*$
+# X-Env-Var-branch-Set: y
+# METAEND
+---
+mmdebstrap:
+  packages:
+    - ca-certificates
+    - git
+  customize-hooks:
+    - |
+      set -eu
+      export BUILDER_URL="$IGconf_builder_url"
+      export BUILDER_BRANCH="${IGconf_builder_branch:-}"
+      install -D -m 0755 ${IGconf_builder_assetdir}/rpi-builder-setup "$1/usr/local/bin/rpi-builder-setup"
+      envsubst '$BUILDER_URL $BUILDER_BRANCH' < ${IGconf_builder_assetdir}/rpi-builder-setup.service.tpl > $1/etc/systemd/system/rpi-builder-setup.service
+      $BDEBSTRAP_HOOKS/enable-units "$1" rpi-builder-setup

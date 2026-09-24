@@ -5,6 +5,7 @@ device:
   layer: rpi5
   hostname: runner
   user1: github-runner
+  user1sudo: nopasswd             # the runner runs as user1, so jobs get passwordless sudo
 
 image:
   name: build_host
@@ -15,6 +16,7 @@ layer:
   app: kiosk
   growfs: growfs
   runner: git-runner
+  builder: rpi_builder
 
 kiosk:
   page: ${@SRCROOT}/resources/runner-kiosk.html
@@ -25,7 +27,7 @@ kiosk:
 runner:
   repo: https://github.com/ConnorHall938/Pi_images
   token_file: ${@SRCROOT}/environment/git-runner.token
-  user: runner
+  user: github-runner              # user1, for its passwordless sudo
 
 # Wifi
 iwd:
