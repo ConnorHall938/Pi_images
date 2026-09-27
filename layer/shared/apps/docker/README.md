@@ -12,10 +12,13 @@ docker:
   user: appuser
   compose: ${@SRCROOT}/resources/homeassistant/compose.yaml
   files:   ${@SRCROOT}/resources/homeassistant/files
-  envfile: ${@SRCROOT}/environment/homeassistant.env
+  envfile: homeassistant.env   # from the boot partition, not the build
+
+bootenv:
+  files: homeassistant.env
 ```
 
-`compose` is required; `user`, `files` and `envfile` are optional. Keep these in the repo's `resources/` folder.
+`compose` is required; `user`, `files` and `envfile` are optional. Keep the compose file and `files` in the repo's `resources/` folder. The env file goes in `environment/` (git-ignored), and `./build.py flash` copies it onto the card because it is listed under `bootenv: files:`.
 
 ## Variables
 
@@ -24,7 +27,7 @@ docker:
 | `user`     | `docker-user` | Account the stack runs as. Created if it doesn't exist, and added to the `docker` group. Membership of that group is root-equivalent on the device. |
 | `compose`  | **required**  | The compose file on the build host, as an absolute path, no spaces. Installed as `~/app/compose.yaml` for that user and started at boot. The build fails if it is unset or the file doesn't exist. |
 | `files`    | *(empty)*     | A directory on the build host, as an absolute path, no spaces. Its contents are copied into `~/app/` next to `compose.yaml`, so relative bind mounts in the compose file (e.g. `./config:/config`) find them. Owned by the user. Symlinks are followed and copied as what they point to, so it can link to content elsewhere in the repo (e.g. a git submodule); a broken link fails the build. If set but not a directory, the build fails. |
-| `envfile`  | *(empty)*     | An environment file on the build host (`KEY=value` lines), as an absolute path, no spaces. Installed as `~/app/.env` (mode 0600, owned by the user), which `docker compose` reads for `${KEY}` in the compose file. For passwords and anything else that shouldn't be committed; keep it in `environment/`. It replaces any `.env` in `files`. The build fails if it is set but doesn't exist. |
+| `envfile`  | `docker.env`  | The name of an environment file (`KEY=value` lines) for passwords and anything else that shouldn't be in the image. It is not built in: it goes on the card's boot partition, in an `environment/` folder, and the [bootenv](../../system/bootenv/README.md) layer installs it at boot as `~/app/.env` (mode 0600, owned by the user). `docker compose` reads it for `${KEY}` in the compose file. It replaces any `.env` from `files`. Empty for none. |
 | `assetdir` | `${DOTD}`     | Where the layer's own files are read from (`docker.d/`). Leave alone. |
 
 The engine layer shares the `docker:` section, so `trust_user1: y` (which adds the image's main user to the `docker` group) goes in the same place.
@@ -34,7 +37,7 @@ The engine layer shares the `docker:` section, so `trust_user1: y` (which adds t
 - The `user` account, in the `docker` group.
 - `/home/<user>/app/compose.yaml`: the `compose` file, owned by the user.
 - `/home/<user>/app/...`: the contents of `files`, if set, owned by the user. If it contains its own `compose.yaml`, the `compose` variable wins.
-- `/home/<user>/app/.env`: the `envfile`, if set, mode 0600.
+- `/etc/bootenv.d/docker.conf`: the rule that sends `envfile` from the boot partition to `/home/<user>/app/.env` (mode 0600), if `envfile` is set.
 - `/etc/systemd/system/docker-app.service`: rendered from `docker.d/docker-app.service.tpl` and enabled. It runs `docker compose up -d` as the user in `~/app`, after `docker.service`, the network and time sync, and `docker compose down` on stop.
 
 ## Layout

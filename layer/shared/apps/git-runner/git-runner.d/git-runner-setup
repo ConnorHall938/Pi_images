@@ -22,8 +22,14 @@ if [ ! -x ./config.sh ]; then
   rm -f "./$tarball"
 fi
 
-token=$(tr -d ' \r\n' < "$RUNNER_TOKEN_FILE")
-[ -n "$token" ] || { echo "git-runner-setup: $RUNNER_TOKEN_FILE is empty" >&2; exit 1; }
+if [ ! -f "$RUNNER_TOKEN_FILE" ]; then
+  # The unit retries every minute, so a token put there by hand is picked up
+  echo "git-runner-setup: no token; put it in the boot partition's environment/ folder and reboot, or in $RUNNER_TOKEN_FILE" >&2
+  exit 1
+fi
+# Lines starting with # are comments (the example file has some)
+token=$(sed '/^[[:space:]]*#/d' "$RUNNER_TOKEN_FILE" | tr -d ' \t\r\n')
+[ -n "$token" ] || { echo "git-runner-setup: $RUNNER_TOKEN_FILE has no token in it" >&2; exit 1; }
 
 # A personal access token is swapped for a registration token
 case "$token" in

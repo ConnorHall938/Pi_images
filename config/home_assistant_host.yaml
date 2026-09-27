@@ -24,10 +24,13 @@ docker:
   user: ha
   compose: ${@SRCROOT}/resources/ha_config/compose.yaml
   files: ${@SRCROOT}/resources/ha_config/files   # copied into ~/app/, so ./config:/config in the compose file finds files/config/
-  envfile: ${@SRCROOT}/environment/ha.env        # installed as ~/app/.env: camera passwords etc, never committed
-# Wifi
-iwd:
-  profile: ${@SRCROOT}/environment/VM8428755.psk
+  envfile: ha.env        # from the boot partition (see bootenv), installed as ~/app/.env: camera passwords etc
+# Secrets are not built in. ./build.py flash copies these from environment/ onto the
+# card's boot partition, and the bootenv layer moves them into place on first boot.
+bootenv:
+  files: VM8428755.psk ha.env
+
+# Wifi (the profile comes from the boot partition, above)
 ieee80211:
   regdom: GB
 

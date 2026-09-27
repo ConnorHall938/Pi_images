@@ -21,18 +21,21 @@ layer:
 
 kiosk:
   page: ${@SRCROOT}/resources/runner-kiosk.html
-  envfile: ${@SRCROOT}/environment/kiosk.env   # GITHUB_REPO and GITHUB_TOKEN for the page
   user: runner-kiosk
   rotation: 90                     # 0, 90, 180 or 270 (270 if 90 turns the wrong way)
 
 runner:
   repo: https://github.com/ConnorHall938/Pi_images
-  token_file: ${@SRCROOT}/environment/git-runner.token
   user: github-runner              # user1, for its passwordless sudo
 
-# Wifi
-iwd:
-  profile: ${@SRCROOT}/environment/VM8428755.psk
+# Secrets are not built in. ./build.py flash copies these from environment/ onto the
+# card's boot partition, and the bootenv layer moves them into place on first boot:
+# the Wi-Fi profile, the runner's token, and kiosk.env (GITHUB_REPO and GITHUB_TOKEN
+# for the page).
+bootenv:
+  files: VM8428755.psk git-runner.token kiosk.env
+
+# Wifi (the profile comes from the boot partition, above)
 ieee80211:
   regdom: GB
 

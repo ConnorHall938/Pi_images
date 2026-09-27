@@ -6,6 +6,10 @@
     ./build.py build build_host --flash          ...then pick a disk from a list
     ./build.py build build_host --flash /dev/sdb ...then flash that disk
     ./build.py flash build_host [/dev/sdb]       flash an image that is already built
+                                                 (add --no-env to leave the secrets off)
+    ./build.py flash-image ~/Downloads/build_host.zip [/dev/sdb]
+                                                 flash an image from elsewhere, eg from CI:
+                                                 .img, .img.xz, or the run's artifact .zip
     ./build.py clean build_host                  remove the build tree for that config
 
 This repository is one rpi-image-gen source tree, laid out like rpi-image-gen itself:
@@ -13,8 +17,10 @@ This repository is one rpi-image-gen source tree, laid out like rpi-image-gen it
     config/NAME.yaml       a config, built with `./build.py build NAME`
     layer/                 layers: shared ones in layer/shared/, others per image
     resources/             files a config puts in the image, as ${@SRCROOT}/resources/...
-    environment/           local secrets a config points at (ssh.pub, *.psk), git-ignored;
-                           referenced as ${@SRCROOT}/environment/...
+    environment/           local keys and secrets (ssh.pub, *.psk, tokens), git-ignored.
+                           Secrets are not built into images: flashing copies the files
+                           a config lists under bootenv: files: onto the card's boot
+                           partition, and the bootenv layer moves them into place at boot.
 
 The repository root is handed to rpi-image-gen as the source directory (-S), so its
 layers and config are found automatically, alongside rpi-image-gen's own.
@@ -32,7 +38,9 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import time
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,6 +49,8 @@ SOURCE_DIR = ROOT  # passed to rpi-image-gen as -S
 CONFIG_DIR = ROOT / "config"
 BUILD_DIR = ROOT / "build"
 OUTPUT_DIR = ROOT / "output"
+ENV_DIR = ROOT / "environment"
+BOOT_ENV_DIR = "environment"  # on the card's boot partition, where the bootenv layer looks
 USING_SUBMODULE = "RPI_IMAGE_GEN" not in os.environ
 RPI_IMAGE_GEN = Path(
     os.environ.get("RPI_IMAGE_GEN", ROOT / "rpi-image-gen" / "rpi-image-gen")
@@ -145,17 +155,36 @@ def rig_args(config):
     return ["-S", SOURCE_DIR, "-c", config.file.name, "-B", BUILD_DIR]
 
 
-def image_name(config):
-    """The image name the config resolves to (includes and overrides applied)."""
+def config_value(config, key):
+    """A setting as the config resolves it (includes and overrides applied); "" if unset."""
     rig_dir = RPI_IMAGE_GEN.parent
     output = capture(
         [rig_dir / "bin" / "ig", "config", "-S", SOURCE_DIR, config.file],
         cwd=rig_dir,  # ig looks for its built-in configs relative to here
     )
     for line in output.splitlines():
-        if line.startswith("CFG IGconf_image_name="):
+        if line.startswith(f"CFG IGconf_{key}="):
             return line.split("=", 1)[1].strip()
-    raise ScriptError(f"could not work out the image name for '{config.name}'")
+    return ""
+
+
+def image_name(config):
+    name = config_value(config, "image_name")
+    if not name:
+        raise ScriptError(f"could not work out the image name for '{config.name}'")
+    return name
+
+
+def env_files(config):
+    """The environment/ files the config wants on the card (bootenv: files:)."""
+    names = config_value(config, "bootenv_files").split()
+    missing = [name for name in names if not (ENV_DIR / name).is_file()]
+    if missing:
+        raise ScriptError(
+            f"'{config.name}' needs {', '.join(missing)} in {ENV_DIR.relative_to(ROOT)}/ "
+            "(see the .example files there), or pass --no-env to flash without them"
+        )
+    return [ENV_DIR / name for name in names]
 
 
 def find_built_image(config, started_at):
@@ -297,17 +326,77 @@ def unmount_partitions(disk_path):
             run(["sudo", "umount", part])
 
 
-def flash(image, disk_path, allow_fixed):
-    """Write the image to the disk. Checks it again, as a long build can change things."""
+def boot_partition(disk_path):
+    """The FAT partition on a freshly flashed disk."""
+    output = capture(["lsblk", "--json", "--output", "PATH,TYPE,FSTYPE", disk_path])
+    for part in json.loads(output)["blockdevices"]:  # a flat list: the disk, then its partitions
+        if part.get("type") == "part" and part.get("fstype") == "vfat":
+            return part["path"]
+    raise ScriptError(f"no boot (vfat) partition found on {disk_path} after flashing")
+
+
+def copy_env(disk_path, files):
+    """Put the secrets on the card's boot partition, for the bootenv layer to install."""
+    # The kernel still has the partitions from before the image was written
+    run(["sudo", "blockdev", "--rereadpt", disk_path])
+    run(["sudo", "udevadm", "settle"])
+    part = "<boot partition>" if dry_run else boot_partition(disk_path)
+    unmount_partitions(disk_path)  # in case the desktop has just mounted it
+    with tempfile.TemporaryDirectory(prefix="pi-boot-") as mountpoint:
+        run(["sudo", "mount", part, mountpoint])
+        try:
+            target = f"{mountpoint}/{BOOT_ENV_DIR}"
+            run(["sudo", "install", "-d", target])
+            run(["sudo", "install", "-m", "0600", *files, target])
+        finally:
+            run(["sudo", "umount", mountpoint])
+    print(f"copied {', '.join(f.name for f in files)} to {BOOT_ENV_DIR}/ on the boot partition")
+
+
+def image_size(image):
+    """The size of the disk image, uncompressed."""
+    if image.suffix != ".xz":
+        return image.stat().st_size
+    for line in capture(["xz", "--robot", "--list", image]).splitlines():
+        fields = line.split("\t")
+        if fields[0] == "file":
+            return int(fields[4])
+    raise ScriptError(f"could not read the uncompressed size of {image}")
+
+
+def write_image(image, disk_path):
+    dd = ["sudo", "dd", f"of={disk_path}", "bs=4M", "conv=fsync", "status=progress"]
+    if image.suffix != ".xz":
+        run([*dd[:2], f"if={image}", *dd[2:]])
+        return
+    dd.append("iflag=fullblock")  # reads from a pipe can come back short
+    print(f"$ xz -dc {shlex.quote(str(image))} | {shlex.join(dd)}", flush=True)
+    if dry_run:
+        return
+    subprocess.run(["sudo", "-v"], check=True)  # ask for the password before the pipe starts
+    xz = subprocess.Popen(["xz", "-dc", str(image)], stdout=subprocess.PIPE)
+    try:
+        subprocess.run(dd, stdin=xz.stdout, check=True)
+    finally:
+        xz.stdout.close()
+        if xz.wait() != 0:
+            raise ScriptError(f"xz could not decompress {image}; the card is not usable")
+
+
+def flash(image, disk_path, allow_fixed, env=()):
+    """Write the image (.img or .img.xz) to the disk, then the env files onto its boot
+    partition. Checks the disk again, as a long build can change things."""
     if not dry_run and not image.is_file():
         raise ScriptError(f"{image} not found - build it first")
-    size = image.stat().st_size if image.is_file() else 0
+    size = image_size(image) if image.is_file() else 0
     disk = check_target(disk_path, size, allow_fixed)
     print(f"Flashing {image.name} to {disk.describe()}", flush=True)
     unmount_partitions(disk.path)
     with timed("flash"):
-        run(["sudo", "dd", f"if={image}", f"of={disk.path}", "bs=4M", "conv=fsync", "status=progress"])
+        write_image(image, disk.path)
         run(["sync"])
+    if env:
+        copy_env(disk.path, env)
     print(f"done - safe to remove {disk.path}")
 
 
@@ -326,17 +415,74 @@ def cmd_build(args):
     config = find_config(args.config)
     check_rpi_image_gen()  # before asking about a disk or starting a long build
     target = None
+    env = ()
     if args.flash is not None:
+        env = () if args.no_env else env_files(config)  # missing files fail now, not after the build
         target = select_target(args.flash, args.allow_fixed)  # choose now, not after the build
     image = build(config)
     if target:
-        flash(image, target, args.allow_fixed)
+        flash(image, target, args.allow_fixed, env)
 
 
 def cmd_flash(args):
     config = find_config(args.config)
+    env = ()
+    if not args.no_env:
+        check_rpi_image_gen()  # to read the config's bootenv files
+        env = env_files(config)
     target = select_target(args.device or "", args.allow_fixed)
-    flash(config.output_image, target, args.allow_fixed)
+    flash(config.output_image, target, args.allow_fixed, env)
+
+
+def unpack_artifact(zip_path, into):
+    """A CI run's artifact download: a .zip holding <config>.img.xz and its .sha256."""
+    with zipfile.ZipFile(zip_path) as archive:
+        images = [n for n in archive.namelist() if n.endswith((".img", ".img.xz"))]
+        if len(images) != 1:
+            raise ScriptError(f"{zip_path.name} should hold one .img or .img.xz, not {len(images)}")
+        print(f"unpacking {zip_path.name}", flush=True)
+        archive.extractall(into)
+    return Path(into) / images[0]
+
+
+def verify_checksum(image):
+    sums = image.with_name(image.name + ".sha256")
+    if not sums.is_file():
+        print(f"(no {sums.name} next to it, so its checksum is not checked)")
+        return
+    print(f"checking {image.name} against {sums.name}", flush=True)
+    capture(["sha256sum", "--check", "--strict", sums.name], cwd=image.parent)
+
+
+def config_for_image(image, name):
+    """The config whose environment/ files go on the card: --config, or the file name."""
+    guess = image.name.removesuffix(".xz").removesuffix(".img")
+    try:
+        return find_config(name or guess)
+    except ScriptError as err:
+        if name:
+            raise
+        raise ScriptError(f"{err}; name the config with --config, or pass --no-env") from None
+
+
+def cmd_flash_image(args):
+    image = Path(args.image).expanduser().resolve()
+    if not image.is_file():
+        raise ScriptError(f"{image} not found")
+    # Unpacked next to the download, not in /tmp, which may be RAM
+    with tempfile.TemporaryDirectory(prefix=".flash-image-", dir=image.parent) as unpacked:
+        if image.suffix == ".zip":
+            image = unpack_artifact(image, unpacked)
+        elif not image.name.endswith((".img", ".img.xz")):
+            raise ScriptError(f"{image.name} is not a .img, .img.xz or .zip")
+        verify_checksum(image)
+        env = ()
+        if not args.no_env:
+            config = config_for_image(image, args.config)
+            check_rpi_image_gen()  # to read the config's bootenv files
+            env = env_files(config)
+        target = select_target(args.device or "", args.allow_fixed)
+        flash(image, target, args.allow_fixed, env)
 
 
 def cmd_clean(args):
@@ -373,6 +519,8 @@ def parse_args(argv):
                           help="flash afterwards; without DEVICE, pick from a list")
     building.add_argument("--allow-fixed", action="store_true",
                           help="allow flashing a disk that does not look removable")
+    building.add_argument("--no-env", action="store_true",
+                          help="don't copy the config's environment/ files onto the card")
     building.set_defaults(func=cmd_build)
 
     flashing = commands.add_parser("flash", help="flash an image that is already built")
@@ -381,7 +529,23 @@ def parse_args(argv):
                           help="target disk; omit to pick from a list")
     flashing.add_argument("--allow-fixed", action="store_true",
                           help="allow flashing a disk that does not look removable")
+    flashing.add_argument("--no-env", action="store_true",
+                          help="don't copy the config's environment/ files onto the card")
     flashing.set_defaults(func=cmd_flash)
+
+    flashing_image = commands.add_parser(
+        "flash-image", help="flash a pre-built image (.img, .img.xz, or a CI artifact .zip)")
+    flashing_image.add_argument("image", help="the image file, eg ~/Downloads/build_host.zip")
+    flashing_image.add_argument("device", nargs="?", type=device_path,
+                                help="target disk; omit to pick from a list")
+    flashing_image.add_argument("--config", metavar="NAME",
+                                help="config whose environment/ files go on the card "
+                                     "(default: from the image's file name)")
+    flashing_image.add_argument("--allow-fixed", action="store_true",
+                                help="allow flashing a disk that does not look removable")
+    flashing_image.add_argument("--no-env", action="store_true",
+                                help="don't copy the config's environment/ files onto the card")
+    flashing_image.set_defaults(func=cmd_flash_image)
 
     cleaning = commands.add_parser("clean", help="remove the build tree for a config")
     cleaning.add_argument("config", help="config name, e.g. build_host")

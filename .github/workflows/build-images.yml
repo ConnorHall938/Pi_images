@@ -5,13 +5,10 @@
 #   - always: as a workflow artifact (the run's page -> Artifacts; kept up to 90 days)
 #   - if a release tag is given: also as assets on a GitHub release with that tag
 #
-# The images need the git-ignored files under environment/. They are written from
-# these repository secrets (Settings -> Secrets and variables -> Actions):
-#   WIFI_PSK      the Wi-Fi password (written as environment/VM8428755.psk)   (both images)
-#   RUNNER_TOKEN  contents of environment/git-runner.token       (build_host)
-#   KIOSK_ENV     contents of environment/kiosk.env              (build_host)
-#   HA_ENV        contents of environment/ha.env                 (home_assistant_host; may be empty)
-# They end up inside the images, so anyone who can download an image can read them.
+# The images hold no secrets, so no repository secrets are needed and anyone who can
+# download an image can have it. The Wi-Fi password, tokens and .env files go onto
+# the card's boot partition when it is flashed (./build.py flash, or by hand into an
+# environment/ folder there), and the bootenv layer moves them into place at boot.
 name: Build images
 run-name: Build ${{ inputs.config }}${{ inputs.release && format(' → {0}', inputs.release) || '' }}
 
@@ -46,37 +43,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Write environment files from secrets
-        env:
-          WIFI_PSK: ${{ secrets.WIFI_PSK }}
-          RUNNER_TOKEN: ${{ secrets.RUNNER_TOKEN }}
-          KIOSK_ENV: ${{ secrets.KIOSK_ENV }}
-          HA_ENV: ${{ secrets.HA_ENV }}
-          CONFIG: ${{ matrix.config }}
-        run: |
-          set -eu
-          umask 077
-          write() {  # write <secret name> <file> [optional]
-            value=$(printenv "$1" || true)
-            if [ -z "$value" ] && [ "${3:-}" != optional ]; then
-              echo "::error::repository secret $1 is not set (needed for environment/$2)"
-              exit 1
-            fi
-            printf '%s\n' "$value" > "environment/$2"
-          }
-          # The secret is just the password; iwd wants it in a profile named after the SSID
-          write WIFI_PSK VM8428755.psk
-          printf '[Security]\nPassphrase=%s\n' "$WIFI_PSK" > environment/VM8428755.psk
-          case "$CONFIG" in
-            build_host)
-              write RUNNER_TOKEN git-runner.token
-              write KIOSK_ENV kiosk.env
-              ;;
-            home_assistant_host)
-              write HA_ENV ha.env optional
-              ;;
-          esac
-
       - name: Build
         run: ./build.py build "${{ matrix.config }}"
 
@@ -98,12 +64,12 @@ jobs:
           if-no-files-found: error
 
       # The build tree has files owned by mapped uids that the next checkout's clean
-      # could not remove, and the secrets must not stay on disk between runs.
+      # could not remove.
       - name: Clean up
         if: always()
         run: |
           ./build.py clean "${{ matrix.config }}" || true
-          sudo rm -rf build output environment/*.psk environment/*.token environment/*.env
+          sudo rm -rf build output
 
   release:
     name: Release ${{ inputs.release }}

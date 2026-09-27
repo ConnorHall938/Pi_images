@@ -6,7 +6,7 @@
 #  variables, declare packages and create a start up script. We depend on the
 #  device-user-admin layer as we want to run the kiosk as the user it creates, and
 #  we depend on systemd because we install a systemd service to start the kiosk.
-# X-Env-Layer-Requires: device-user-admin,systemd-net-min,systemd-timesyncd
+# X-Env-Layer-Requires: device-user-admin,systemd-net-min,systemd-timesyncd,bootenv
 #
 # X-Env-VarPrefix: kiosk
 #
@@ -31,16 +31,16 @@
 # X-Env-Var-page-Valid: regex:^(/[^ ]+)?$
 # X-Env-Var-page-Set: y
 #
-# X-Env-Var-envfile:
-# X-Env-Var-envfile-Desc: Absolute path to an environment file on the build host
-#  (eg under the repo's environment/ folder), KEY=value lines, for values that
-#  should not be committed such as tokens. Installed as /etc/kiosk/kiosk.env,
-#  readable only by root, and loaded by kiosk.service. When page is also set,
-#  each ${KEY} in the page is replaced with its value at start up, and the
-#  browser loads that copy (kept in /run, never written to the SD card). The
-#  build fails if it is set but does not exist. No spaces in the path.
+# X-Env-Var-envfile: kiosk.env
+# X-Env-Var-envfile-Desc: Name of an environment file, KEY=value lines, for values
+#  that should not be in the image such as tokens. It is not built in: put it in
+#  the boot partition's environment/ folder and the bootenv layer installs it on
+#  boot as /etc/kiosk/kiosk.env (readable by root and the kiosk user), which
+#  kiosk.service loads. When page is set, each ${KEY} in the page is replaced
+#  with its value at start up, and the browser loads that copy (kept in /run,
+#  never written to the SD card). Empty for none.
 # X-Env-Var-envfile-Required: n
-# X-Env-Var-envfile-Valid: regex:^(/[^ ]+)?$
+# X-Env-Var-envfile-Valid: regex:^[A-Za-z0-9._-]*$
 # X-Env-Var-envfile-Set: y
 #
 # X-Env-Var-user: kiosk-user
@@ -96,12 +96,11 @@ mmdebstrap:
       fi
       export KIOSK_USER="$IGconf_kiosk_user"
       export KIOSK_RUNDIR_NAME="kiosk"
-      # The environment file's keys, as envsubst's list of variables to fill in the page
-      envvars=""
+      # The environment file comes off the boot partition at boot (bootenv layer), not the build
+      install -d -m 0755 "$1/etc/kiosk"
       if [ -n "${IGconf_kiosk_envfile:-}" ]; then
-        [ -f "$IGconf_kiosk_envfile" ] || { echo "kiosk: envfile not found: $IGconf_kiosk_envfile" >&2; exit 1; }
-        install -D -m 0600 "$IGconf_kiosk_envfile" "$1/etc/kiosk/kiosk.env"
-        envvars=$(sed -n 's/^[[:space:]]*\([A-Za-z_][A-Za-z0-9_]*\)=.*/$\1/p' "$IGconf_kiosk_envfile" | tr '\n' ' ')
+        install -d -m 0755 "$1/etc/bootenv.d"
+        printf '%s  /etc/kiosk/kiosk.env  root:%s  0640\n' "$IGconf_kiosk_envfile" "$IGconf_kiosk_user" > "$1/etc/bootenv.d/kiosk.conf"
       fi
       # cage runs this script: rotate the output (if asked), wait for the page, then start the browser.
       # Build-time values are filled in here; \$ keeps a variable for run time.
@@ -114,8 +113,9 @@ mmdebstrap:
         wlr-randr --output "\$out" --transform "$IGconf_kiosk_rotation" || echo "kiosk-session: rotation failed" >&2
       fi
       url="$KIOSK_URL"
-      # Fill the page in from kiosk.env (loaded by kiosk.service) into a private copy
-      vars='$envvars'
+      # Fill the page in from kiosk.env (loaded by kiosk.service) into a private copy.
+      # Only kiosk.env's keys, so other \${...} in the page (eg JavaScript) are left alone.
+      vars=\$(sed -n 's/^[[:space:]]*\\([A-Za-z_][A-Za-z0-9_]*\\)=.*/\$\\1/p' /etc/kiosk/kiosk.env 2>/dev/null | tr '\\n' ' ')
       case "\$url" in
         file://*)
           if [ -n "\$vars" ]; then

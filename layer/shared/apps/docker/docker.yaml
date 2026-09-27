@@ -7,7 +7,7 @@
 #  group), installs the config's compose file into that user's home, and enables a
 #  systemd service that brings it up once the network and clock are ready. Images
 #  are pulled on first boot, not baked into the image.
-# X-Env-Layer-Requires: docker-debian-trixie,device-user-admin,systemd-net-min,systemd-timesyncd
+# X-Env-Layer-Requires: docker-debian-trixie,device-user-admin,systemd-net-min,systemd-timesyncd,bootenv
 #
 # X-Env-VarPrefix: docker
 #
@@ -42,15 +42,15 @@
 # X-Env-Var-files-Valid: regex:^(/[^ ]+)?$
 # X-Env-Var-files-Set: y
 #
-# X-Env-Var-envfile:
-# X-Env-Var-envfile-Desc: Absolute path to an environment file on the build host
-#  (eg under the repo's environment/ folder), KEY=value lines, for values that
-#  should not be committed such as passwords. Installed as ~/app/.env, readable
-#  only by the user, which docker compose reads for ${KEY} in the compose file.
-#  Installed after files, so it replaces any .env there. Optional; the build fails
-#  if it is set but does not exist. No spaces in the path.
+# X-Env-Var-envfile: docker.env
+# X-Env-Var-envfile-Desc: Name of an environment file, KEY=value lines, for values
+#  that should not be in the image such as passwords, which docker compose reads
+#  for ${KEY} in the compose file. It is not built in: put it in the boot
+#  partition's environment/ folder and the bootenv layer installs it on boot as
+#  ~/app/.env, readable only by the user, replacing any .env from files. Empty for
+#  none.
 # X-Env-Var-envfile-Required: n
-# X-Env-Var-envfile-Valid: regex:^(/[^ ]+)?$
+# X-Env-Var-envfile-Valid: regex:^[A-Za-z0-9._-]*$
 # X-Env-Var-envfile-Set: y
 # METAEND
 ---
@@ -78,9 +78,10 @@ mmdebstrap:
         cp -RL --preserve=mode,timestamps "$IGconf_docker_files"/. "$1$DOCKER_APPDIR"/
       fi
       install -m 0644 "$IGconf_docker_compose" "$1$DOCKER_APPDIR/compose.yaml"
+      # The .env comes off the boot partition at boot (bootenv layer), not the build
       if [ -n "${IGconf_docker_envfile:-}" ]; then
-        [ -f "$IGconf_docker_envfile" ] || { echo "docker: envfile not found: $IGconf_docker_envfile" >&2; exit 1; }
-        install -m 0600 "$IGconf_docker_envfile" "$1$DOCKER_APPDIR/.env"
+        install -d -m 0755 "$1/etc/bootenv.d"
+        printf '%s  %s/.env  %s:%s  0600\n' "$IGconf_docker_envfile" "$DOCKER_APPDIR" "$DOCKER_USER" "$DOCKER_USER" > "$1/etc/bootenv.d/docker.conf"
       fi
       chroot $1 chown -R "$DOCKER_USER:$DOCKER_USER" "$DOCKER_APPDIR"
       envsubst '$DOCKER_USER $DOCKER_APPDIR' < ${IGconf_docker_assetdir}/docker-app.service.tpl > $1/etc/systemd/system/docker-app.service

@@ -1,0 +1,62 @@
+#!/bin/sh
+# Installed by the bootenv layer; run early at every boot by bootenv.service.
+# Moves each file in the boot partition's environment/ folder to where the first rule
+# that matches its name says, then shreds it from the card, so secrets never have to
+# be in the image. Rules are lines in /etc/bootenv.d/*.conf, read in name order:
+#
+#   PATTERN  DEST  OWNER[:GROUP]  MODE      eg  kiosk.env  /etc/kiosk/kiosk.env  root:kiosk  0640
+#
+# PATTERN is a shell pattern for the file's name. A DEST ending in / is a directory,
+# and the file keeps its name there. Windows line endings are removed on the way.
+set -eu
+
+SRC=${BOOTENV_SRC:-/boot/firmware/environment}  # overridable so it can be tested
+RULES=${BOOTENV_RULES:-/etc/bootenv.d}
+
+log() { echo "bootenv: $*" >&2; }
+
+# Prints "DEST OWNER MODE" from the first rule whose pattern matches the name $1
+find_rule() {
+    for conf in "$RULES"/*.conf; do
+        [ -f "$conf" ] || continue
+        while read -r pattern dest owner mode _; do
+            case "$pattern" in ''|'#'*) continue ;; esac
+            # shellcheck disable=SC2254  # the pattern is meant to match as a pattern
+            case "$1" in $pattern) echo "$dest $owner $mode"; return 0 ;; esac
+        done < "$conf"
+    done
+}
+
+# install_one FILE DEST OWNER MODE
+install_one() {
+    mkdir -p "${2%/*}" || return 1
+    tmp="$2.bootenv-new"
+    (umask 077 && tr -d '\r' < "$1" > "$tmp") || return 1
+    chown "$3" "$tmp" && chmod "$4" "$tmp" && mv -f "$tmp" "$2" || { rm -f "$tmp"; return 1; }
+    # Overwrite, not just delete: a deleted file on FAT can be read back off the card
+    shred -u "$1" 2>/dev/null || rm -f "$1"
+}
+
+failed=0
+for file in "$SRC"/*; do  # not dotfiles: macOS leaves ._<name> copies that would match
+    [ -f "$file" ] || continue
+    name=${file##*/}
+    rule=$(find_rule "$name")
+    if [ -z "$rule" ]; then
+        log "no rule in $RULES for $name; left on the card"
+        continue
+    fi
+    set -f; set -- $rule; set +f  # DEST OWNER MODE
+    dest=$1
+    case "$dest" in */) dest="$dest$name" ;; esac
+    if install_one "$file" "$dest" "$2" "$3"; then
+        log "installed $name as $dest"
+    else
+        log "could not install $name as $dest; left on the card"
+        failed=1
+    fi
+done
+
+rmdir "$SRC" 2>/dev/null || true  # only once it is empty
+sync
+exit "$failed"

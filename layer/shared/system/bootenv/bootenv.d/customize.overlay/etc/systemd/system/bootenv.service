@@ -1,0 +1,19 @@
+[Unit]
+Description=Install secrets from the boot partition
+Documentation=file:/etc/bootenv.d
+# Runs before sysinit.target, so before every ordinary service (iwd, and the apps
+# whose files these are), with only the local filesystems it needs mounted.
+DefaultDependencies=no
+RequiresMountsFor=/boot/firmware /var/lib /home
+After=local-fs.target
+Before=sysinit.target shutdown.target
+Conflicts=shutdown.target
+ConditionDirectoryNotEmpty=/boot/firmware/environment
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/bootenv-install
+
+[Install]
+WantedBy=sysinit.target

@@ -1,0 +1,11 @@
+# Copy to git-runner.token (git-ignored) and put the token on the line below these
+# comments. Not built into the image: ./build.py flash puts it on the card's boot
+# partition, and the build_host installs it at boot for the runner to register with.
+#
+# Either of:
+#   - a fine-grained personal access token (github_pat_...) on the repo with
+#     "Administration: Read and write". Best: it is swapped for a registration
+#     token on the device, so it does not matter how long the card sits unused.
+#   - a registration token from the repo's Settings > Actions > Runners > New
+#     self-hosted runner. It expires an hour after it is made.
+# The device deletes this file once the runner is registered.

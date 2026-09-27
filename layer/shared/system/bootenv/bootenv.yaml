@@ -1,0 +1,27 @@
+# METABEGIN
+# X-Env-Layer-Name: bootenv
+# X-Env-Layer-Version: 1.0.0
+# X-Env-Layer-Category: system
+# X-Env-Layer-Desc: Keeps secrets out of the image. Early on every boot, moves
+#  the files in the boot partition's environment/ folder (/boot/firmware/environment/
+#  on the device) to where they belong, then shreds them from the card. Other layers
+#  say where each file goes with a rule in /etc/bootenv.d/ (see the README); iwd
+#  Wi-Fi profiles (*.psk, *.open, *.8021x) go to /var/lib/iwd/ by default.
+# X-Env-Layer-RequiresProvider: systemd
+#
+# X-Env-VarPrefix: bootenv
+#
+# X-Env-Var-files:
+# X-Env-Var-files-Desc: Names of files in the repo's environment/ folder, space
+#  separated, that ./build.py flash copies onto the card's boot partition, for
+#  this layer to install on first boot. Not used by the build itself.
+# X-Env-Var-files-Required: n
+# X-Env-Var-files-Valid: regex:^[A-Za-z0-9._ -]*$
+# X-Env-Var-files-Set: y
+# METAEND
+---
+mmdebstrap:
+  customize-hooks:
+    # The script, the unit and the iwd rule come from bootenv.d/customize.overlay/
+    - chmod 755 "$1/usr/local/sbin/bootenv-install"
+    - $BDEBSTRAP_HOOKS/enable-units "$1" bootenv
