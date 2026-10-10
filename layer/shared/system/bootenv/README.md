@@ -21,7 +21,7 @@ To change a secret later, put the new file there and reboot, or edit the install
 
 ## Where files go
 
-Each file goes where the first rule that matches its name says. Rules are lines in `/etc/bootenv.d/*.conf` in the image, and the layers write their own:
+Each file goes where the first rule that matches its name says. Rules are lines in `/etc/bootenv.d/*.conf` in the image. Only `iwd.conf` is a file in this layer (`bootenv.d/customize.overlay/`). The other layers generate theirs during the build, with a `printf` in a hook in their yaml, because the paths depend on their variables (user names, `envfile`). So `kiosk.conf`, `git-runner.conf` and `docker.conf` exist only in the built image:
 
 | File on the card  | Installed as                     | Rule from |
 |-------------------|----------------------------------|-----------|

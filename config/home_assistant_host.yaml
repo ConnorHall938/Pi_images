@@ -12,14 +12,9 @@ image:
 
 
 layer:
-  kiosk: kiosk
   containers: docker
   growfs: growfs
 
-kiosk:
-  url: http://localhost:8123        # Home Assistant, from the docker stack
-  user: ha-kiosk
-  rotation: 90                     # 0, 90, 180 or 270 (270 if 90 turns the wrong way)
 docker:
   user: ha
   compose: ${@SRCROOT}/resources/ha_config/compose.yaml
