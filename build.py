@@ -175,9 +175,21 @@ def image_name(config):
     return name
 
 
+def bootenv_files(config):
+    """The config's bootenv: files:, read from the file itself rather than through ig,
+    whose Python modules are Debian only, so that flashing works on any Linux host."""
+    try:
+        import yaml
+    except ImportError:
+        raise ScriptError("reading the config needs PyYAML (python3-pyyaml on Fedora, "
+                          "python3-yaml on Debian), or pass --no-env") from None
+    settings = yaml.safe_load(config.file.read_text()) or {}
+    return str((settings.get("bootenv") or {}).get("files") or "").split()
+
+
 def env_files(config):
     """The environment/ files the config wants on the card (bootenv: files:)."""
-    names = config_value(config, "bootenv_files").split()
+    names = bootenv_files(config)
     missing = [name for name in names if not (ENV_DIR / name).is_file()]
     if missing:
         raise ScriptError(
@@ -428,7 +440,6 @@ def cmd_flash(args):
     config = find_config(args.config)
     env = ()
     if not args.no_env:
-        check_rpi_image_gen()  # to read the config's bootenv files
         env = env_files(config)
     target = select_target(args.device or "", args.allow_fixed)
     flash(config.output_image, target, args.allow_fixed, env)
@@ -479,7 +490,6 @@ def cmd_flash_image(args):
         env = ()
         if not args.no_env:
             config = config_for_image(image, args.config)
-            check_rpi_image_gen()  # to read the config's bootenv files
             env = env_files(config)
         target = select_target(args.device or "", args.allow_fixed)
         flash(image, target, args.allow_fixed, env)
